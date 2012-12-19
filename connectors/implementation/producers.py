@@ -19,19 +19,19 @@
 #
 ##############################################################################
 
-{
-    'name': 'Connectors',
-    'version': '0.0',
-    'category': 'Generic Modules',
-    'description': """
-Experiments around the connectors, with chocolate.
-    """,
-    'author': 'Guewen Baconnier',
-    'website': '',
-    'depends': ['delivery'],
-    'data': [
-        'group_fields_view.xml',
-        'security/base_external_referentials_security.xml',
-    ],
-    'installable': True,
-}
+from openerp.osv import orm
+from ..abstract.events import on_stock_picking_tracking_number
+
+
+class stock_picking(orm.Model):
+
+    _inherit = 'stock.picking'
+
+    def write(self, cr, uid, ids, vals, context=None):
+        res = super(stock_picking, self).write(
+                cr, uid, ids, vals, context=context)
+        if vals.get('carrier_tracking_ref'):
+            for res_id in ids:
+                on_stock_picking_tracking_number.fire(
+                    Session(cr, uid, self.pool, context=context), res_id)
+        return res
