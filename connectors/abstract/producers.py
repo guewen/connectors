@@ -36,6 +36,12 @@ from .connector import Session
 _logger = logging.getLogger(__name__)
 
 
+class connectors_installed(orm.AbstractModel):
+    """Empty model used to know if the module is
+    installed on the database or not."""
+    _name = 'connectors.installed'
+
+
 # generic producers of events on models
 class model_producers(object_proxy):
     """ Proxy around the orm Models which tracks the changes
@@ -50,12 +56,18 @@ class model_producers(object_proxy):
         """
         res = super(model_producers, self).execute_cr(
                 cr, uid, model, method, *args, **kw)
+
+        pool = pooler.get_pool(cr.dbname)
+        # avoid to fire events when the module is not installed
+        if not 'connectors.installed' in pool.models:
+            return res
+
         context = kw.get('context')
 
-        session = lambda: Session(
+        session = lambda: Session(  # lazy evaluation
                 cr,
                 uid,
-                pooler.get_pool(cr.dbname),
+                pool,
                 context=context)
         if method == 'create':
             on_record_create.fire(session(), model, res)
