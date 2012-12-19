@@ -32,6 +32,7 @@ Experiments around the connectors, with chocolate.
     'data': [
         'group_fields_view.xml',
         'security/base_external_referentials_security.xml',
+        'implementation/queue_view.xml',
     ],
     'installable': True,
 }

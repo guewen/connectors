@@ -21,6 +21,7 @@
 
 from openerp.osv import orm
 from ..abstract.events import on_stock_picking_tracking_number
+from ..abstract.connector import Session
 
 
 class stock_picking(orm.Model):
