@@ -20,7 +20,12 @@
 ##############################################################################
 
 from openerp.osv import orm
-from ..abstract.events import on_stock_picking_tracking_number
+from ..abstract.events import (
+        on_stock_picking_tracking_number,
+        on_record_create,
+        on_record_write,
+        on_record_unlink
+        )
 from ..abstract.connector import Session
 
 
@@ -36,3 +41,48 @@ class stock_picking(orm.Model):
                 on_stock_picking_tracking_number.fire(
                     Session(cr, uid, self.pool, context=context), res_id)
         return res
+
+SYNC_MODELS = ('product.product')
+
+
+# register consumers on the events:
+def task_created(session, model_name, record_id):
+    """ here belongs the task(s) creation """
+    if not model_name in SYNC_MODELS:
+        return
+    session.pool.get('faux.queue.magento').delay(
+            session.cr, session.uid,
+            'default',
+            'export_generic',
+            model_name=model_name,
+            record_id=record_id,
+            mode='create'
+            )
+
+on_record_create.subscribe(task_created)
+
+
+def task_written(session, model_name, record_id, fields):
+    """ here belongs the task(s) creation """
+    if not model_name in SYNC_MODELS:
+        return
+    session.pool.get('faux.queue.magento').delay(
+            session.cr, session.uid,
+            'default',
+            'export_generic',
+            model_name=model_name,
+            record_id=record_id,
+            mode='update',
+            fields=fields
+            )
+
+on_record_write.subscribe(task_written)
+
+
+def task_unlinked(session, model_name, record_id):
+    """ here belongs the task(s) creation """
+    if not model_name in SYNC_MODELS:
+        return
+
+on_record_unlink.subscribe(task_unlinked)
+

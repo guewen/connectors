@@ -189,3 +189,90 @@ class SingleImport(object):
     #     """implement only if special actions need to be done
     #     after the commit"""
 
+
+class SingleExport(object):
+
+    connector_registry = REGISTRY
+
+    def __init__(self, session, model_name, record_id,
+                 mode='create', with_commit=False,
+                 fields=None, **kwargs):
+        self.session = session
+        self.model = self.session.pool.get(model_name)
+        self.record_id = record_id
+        assert mode in ('create', 'update'), "mode should be create or update"
+        self.mode = mode
+        self.with_commit = with_commit
+        self.fields = fields
+
+    def export_record(self):
+        """ Import the record
+
+        Delegates the knowledge to specialized instances
+
+        :param mode: could be 'create' or 'update'
+        """
+        if self._has_to_skip():
+            return
+
+        record = self._browse_record()
+
+        # import the missing linked resources
+        self._export_dependencies(record)
+
+        # default_values = self._default_values()
+
+        transformed_data = self._transform_data(record)
+
+        # special check on data before import
+        self._validate_data(transformed_data)
+        external_id = getattr(self, '_%s' % self.mode)(transformed_data)
+
+        if self.with_commit:
+            self.session.commit()
+
+        if hasattr(self, '_after_commit'):
+            if self.with_commit is False:
+                raise ValueError('An _after_commit method is declared '
+                                 'but SingleExport is initialized without commit')
+            getattr(self, '_after_commit')()
+
+        return external_id
+
+    def _has_to_skip(self):
+        # delegate a check of existence of external_id
+        return False
+
+    def _browse_record(self):
+        # delegate a call to browse the record
+        return
+
+    def _export_dependencies(self, data):
+        # call SingleExport#export for each dependency
+        # no commit should be done inside of a SingleImport
+        # flow
+        return {}
+
+    def _validate_data(self, data):
+        """ Check if the values to import are correct
+
+        Example: pro-actively check before the ``Model.create`` if
+        some fields are missing
+        """
+        return True
+
+    def _transform_data(self, external_data):
+        # delegate a call to mapping
+        return {}
+
+    def _create(self, data):
+        # delegate creation of the record
+        return
+
+    def _update(self, data):
+        # delegate update of the record
+        return
+
+    # def _after_commit():
+    #     """implement only if special actions need to be done
+    #     after the commit"""

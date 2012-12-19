@@ -80,8 +80,8 @@ class FauxQueue(object):
             'args': fields.serialized('Arguments'),
     }
 
-    def delay(self, cr, uid, queue, task, args):
-        self.create(cr, uid, {'queue': queue, 'task': task, 'args': args})
+    def delay(self, cr, uid, queue, task, **kwargs):
+        self.create(cr, uid, {'queue': queue, 'task': task, 'args': kwargs})
         return True
 
     def _get_task(self, task_name):
@@ -97,8 +97,6 @@ class FauxQueue(object):
                 context=context)
         session = Session(cr, uid, self.pool, context=context)
         for task_id in task_ids:
-            # FIXME remove
-            self.write(cr, uid, task_id, {'args': {'model_name': 'product.product', 'record_id': 3}})
             # lock the row to avoid to be processed by another job
             sql = "SELECT id FROM %s " % self._table
             sql += "WHERE id = %s FOR UPDATE"

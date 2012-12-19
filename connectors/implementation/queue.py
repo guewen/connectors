@@ -21,8 +21,11 @@
 
 from openerp.osv import orm, fields
 from ..abstract.queue import FauxQueue
-from ..abstract.connector import TasksRegistry, \
-        SingleImport
+from ..abstract.connector import (
+        TasksRegistry,
+        SingleImport,
+        SingleExport
+        )
 
 
 TASKS = TasksRegistry()
@@ -58,3 +61,35 @@ def import_generic(session, model_name=None, record_id=None, mode='create'):
 
 
 TASKS.register('import_generic', import_generic)
+
+
+def export_generic(session, model_name=None, record_id=None,
+                   mode='create', fields=None):
+    """ Export a record to the external referential
+
+    Use keyword arguments for the task arguments
+
+    :param session: `Session` object
+    :param model_name: name of the model as str
+    :param record_id: id of the record on the external referential
+    :param mode: 'create' or 'update'
+    :param fields: optional dict of fields to export, if None,
+                   all the fields are exported
+    """
+    # FIXME: not sure that we want forcefully a new cr
+    # when we run the task, could it be called from a `_get_dependencies`
+    # as instance?
+    # should we commit as well?
+    with session.own_transaction() as subsession:
+        import pdb; pdb.set_trace()
+        exporter = SingleExport(
+                subsession,
+                model_name,
+                record_id,
+                mode=mode,
+                with_commit=True,
+                fields=fields)
+        exporter.export_record()
+
+
+TASKS.register('export_generic', export_generic)
