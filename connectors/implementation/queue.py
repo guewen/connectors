@@ -81,7 +81,6 @@ def export_generic(session, model_name=None, record_id=None,
     # as instance?
     # should we commit as well?
     with session.own_transaction() as subsession:
-        import pdb; pdb.set_trace()
         exporter = SingleExport(
                 subsession,
                 model_name,
