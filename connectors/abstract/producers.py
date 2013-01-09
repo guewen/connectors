@@ -24,8 +24,6 @@ Implements producers of the events
 
 """
 
-import logging
-
 from openerp.osv import orm
 from openerp import pooler
 from openerp.osv.osv import object_proxy
@@ -34,8 +32,6 @@ from .events import (on_record_create,
                      on_record_write,
                      on_record_unlink,
                      on_workflow_signal)
-
-_logger = logging.getLogger(__name__)
 
 
 class connectors_installed(orm.AbstractModel):

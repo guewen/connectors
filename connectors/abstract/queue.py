@@ -18,10 +18,14 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+import logging
+
 from contextlib import closing
 from openerp.osv import orm, fields
 from openerp import pooler
 from .connector import REGISTRY, Session
+
+_logger = logging.getLogger(__name__)
 
 
 class FauxQueue(object):
@@ -90,6 +94,8 @@ class FauxQueue(object):
         return self.task_registry.get(task_name)
 
     def run(self, cr, uid, queue, max_count=None, context=None):
+        _logger.debug('Starting execution of tasks on '
+                      'the queue %s', queue)
         task_ids = self.search(
                 cr, uid,
                 [('queue', '=', queue)],
@@ -102,14 +108,17 @@ class FauxQueue(object):
             sql += "WHERE id = %s FOR UPDATE"
             # TODO catch lock exceptions
             cr.execute(sql, (task_id,))
+
             task = self.browse(cr, uid, task_id, context=context)
 
             # the session create a cursor and manage its transactional state
-            # check if the tasks should handle that or the run
             with session.own_transaction() as subsession:
+                _logger.debug('Execute task %d on the queue %s', task_id, queue)
                 self._get_task(task.task)(subsession, **task.args)
 
             # release lock on the row
             session.commit()
+
+        _logger.debug('Finished execution of tasks on the queue %s', queue)
         return True
 

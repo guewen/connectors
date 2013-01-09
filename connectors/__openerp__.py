@@ -31,6 +31,7 @@ Experiments around the connectors, with chocolate.
     'depends': ['delivery'],
     'data': [
         'implementation/queue_view.xml',
+        'implementation/queue_data.xml',
     ],
     'installable': True,
 }
