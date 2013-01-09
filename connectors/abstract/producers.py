@@ -29,9 +29,11 @@ import logging
 from openerp.osv import orm
 from openerp import pooler
 from openerp.osv.osv import object_proxy
-from .events import on_record_create, on_record_write, on_record_unlink, \
-        on_sale_order_status_change, on_workflow_signal
 from .connector import Session
+from .events import (on_record_create,
+                     on_record_write,
+                     on_record_unlink,
+                     on_workflow_signal)
 
 _logger = logging.getLogger(__name__)
 
@@ -104,28 +106,3 @@ class model_producers(object_proxy):
         return res
 
 model_producers()
-
-
-# register consumers on the events:
-def task_created(session, model_name, record_id):
-    """ here belongs the task(s) creation """
-    _logger.debug("A %s with id %d has been created" % (model_name, record_id))
-
-on_record_create.subscribe(task_created)
-
-
-def task_written(session, model_name, record_id, fields):
-    """ here belongs the task(s) creation """
-    _logger.debug("A %s with id %d has been updated on fields %s" %
-            (model_name, record_id, fields))
-
-on_record_write.subscribe(task_written)
-
-
-def task_unlinked(session, model_name, record_id):
-    """ here belongs the task(s) creation """
-    _logger.debug("A %s with id %d has been deleted" % (model_name, record_id))
-
-on_record_unlink.subscribe(task_unlinked)
-
-
