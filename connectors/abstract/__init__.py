@@ -4,3 +4,4 @@ from .producers import *
 from .queue import *
 import consumers
 from .exceptions import *
+from .processors import *
