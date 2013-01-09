@@ -79,10 +79,18 @@ class FauxQueue(object):
     _rec_name = 'queue'
 
     _columns = {
-            'queue': fields.selection(_get_queues, string='Queue'),
-            'task': fields.char('Task'),
-            'args': fields.serialized('Arguments'),
-    }
+        'queue': fields.selection(_get_queues, string='Queue'),
+        'task': fields.char('Task'),
+        'args': fields.serialized('Arguments'),
+        'state': fields.selection([('pending', 'Pending'),
+                                   ('done', 'Done')],
+                                  string='State',
+                                  readonly=True),
+        }
+
+    _defaults = {
+        'state': 'pending',
+        }
 
     def delay(self, cr, uid, queue, task, **kwargs):
         self.create(cr, uid, {'queue': queue, 'task': task, 'args': kwargs})
@@ -95,10 +103,11 @@ class FauxQueue(object):
 
     def run(self, cr, uid, queue, max_count=None, context=None):
         _logger.debug('Starting execution of tasks on '
-                      'the queue %s', queue)
+                      'the queue \'%s\'', queue)
         task_ids = self.search(
                 cr, uid,
-                [('queue', '=', queue)],
+                [('queue', '=', queue),
+                 ('state', '=', 'pending')],
                 limit=max_count,
                 context=context)
         session = Session(cr, uid, self.pool, context=context)
@@ -113,12 +122,19 @@ class FauxQueue(object):
 
             # the session create a cursor and manage its transactional state
             with session.own_transaction() as subsession:
-                _logger.debug('Execute task %d on the queue %s', task_id, queue)
-                self._get_task(task.task)(subsession, **task.args)
+                _logger.debug('Execute task %d on the queue \'%s\'',
+                              task_id, queue)
+                try:
+                    self._get_task(task.task)(subsession, **task.args)
+                except Exception as err:  # XXX catch which exception?
+                    # we'll retry on the next run
+                    _logger.exception('Error during execution of task: %d',
+                                      task_id)
+                else:
+                    task.write({'state': 'done'})
 
             # release lock on the row
             session.commit()
 
-        _logger.debug('Finished execution of tasks on the queue %s', queue)
+        _logger.debug('Finished execution of tasks on the queue \'%s\'', queue)
         return True
-

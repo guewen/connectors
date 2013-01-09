@@ -3,3 +3,4 @@ from .events import *
 from .producers import *
 from .queue import *
 import consumers
+from .exceptions import *
