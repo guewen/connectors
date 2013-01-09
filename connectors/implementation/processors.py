@@ -32,14 +32,14 @@ class Magento1600Processor(MagentoProcessor):
     """ Concrete class for Magento 1.6 """
     reference = Magento1600
 
-REGISTRY.register_mapping(Magento1600Processor)
+REGISTRY.register_processor(Magento1600Processor)
 
 
 class Magento1700Processor(MagentoProcessor):
     """ Concrete class for Magento  1.7"""
     reference = Magento1700
 
-REGISTRY.register_mapping(Magento1700Processor)
+REGISTRY.register_processor(Magento1700Processor)
 
 
 class MagentoModelProcessor(AbstractModelProcessor):

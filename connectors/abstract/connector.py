@@ -27,25 +27,25 @@ from contextlib import contextmanager
 class ConnectorRegistry(object):
     def __init__(self):
         self.connectors = set()
-        self.mappings = set()
+        self.processors = set()
 
-    def get_connector(self, type, version):
+    def get_connector(self, reference):
         for connector in self.connectors:
-            if connector.match(type, version):
+            if connector.match(reference):
                 return connector
         raise ValueError('No matching connector found')
 
-    def get_mapping(self, type, version):
-        for mapping in self.mappings:
-            if mapping.match(type, version):
-                return mapping
-        raise ValueError('No matching mapping found')
+    def get_processor(self, reference):
+        for processor in self.processors:
+            if processor.match(reference):
+                return processor
+        raise ValueError('No matching processor found')
 
     def register_connector(self, connector):
         self.connectors.add(connector)
 
-    def register_mapping(self, mapping):
-        self.mappings.add(mapping)
+    def register_processor(self, processor):
+        self.processors.add(processor)
 
 REGISTRY = ConnectorRegistry()
 
@@ -157,13 +157,16 @@ class SingleImport(object):
 
     def _get_external_data(self):
         # delegate a call to the backend
-        return {}
+        return {'name': 'Guewen Baconnier'}
 
     def _import_dependencies(self, data):
         # call SingleImport#import for each dependency
         # no commit should be done inside of a SingleImport
         # flow
-        return {}
+        # import m2o #1
+        # import m2o #2
+        # the imported records are searched again by their id
+        # during the transformation
 
     def _validate_data(self, data):
         """ Check if the values to import are correct
@@ -174,8 +177,9 @@ class SingleImport(object):
         return True
 
     def _transform_data(self, external_data):
-        # delegate a call to mapping
-        return {}
+        # XXX get reference
+        # self.connector_registry.get_processor(reference)
+        return
 
     def _create(self, data):
         # delegate creation of the record
