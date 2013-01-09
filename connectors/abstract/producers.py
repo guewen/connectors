@@ -109,14 +109,14 @@ model_producers()
 # register consumers on the events:
 def task_created(session, model_name, record_id):
     """ here belongs the task(s) creation """
-    _logger.info("A %s with id %d has been created" % (model_name, record_id))
+    _logger.debug("A %s with id %d has been created" % (model_name, record_id))
 
 on_record_create.subscribe(task_created)
 
 
 def task_written(session, model_name, record_id, fields):
     """ here belongs the task(s) creation """
-    _logger.info("A %s with id %d has been updated on fields %s" %
+    _logger.debug("A %s with id %d has been updated on fields %s" %
             (model_name, record_id, fields))
 
 on_record_write.subscribe(task_written)
@@ -124,7 +124,7 @@ on_record_write.subscribe(task_written)
 
 def task_unlinked(session, model_name, record_id):
     """ here belongs the task(s) creation """
-    _logger.info("A %s with id %d has been deleted" % (model_name, record_id))
+    _logger.debug("A %s with id %d has been deleted" % (model_name, record_id))
 
 on_record_unlink.subscribe(task_unlinked)
 
