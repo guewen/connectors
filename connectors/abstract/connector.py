@@ -167,6 +167,7 @@ class SingleImport(object):
         # import m2o #2
         # the imported records are searched again by their id
         # during the transformation
+        return
 
     def _validate_data(self, data):
         """ Check if the values to import are correct
