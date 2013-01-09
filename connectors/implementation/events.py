@@ -2,7 +2,7 @@
 ##############################################################################
 #
 #    Author: Guewen Baconnier
-#    Copyright 2012 Guewen Baconnier
+#    Copyright 2012 Camptocamp SA
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -19,22 +19,36 @@
 #
 ##############################################################################
 
-from openerp.osv import orm
-from .events import on_stock_picking_tracking_number
-from ..abstract.connector import Session
+from ..abstract.events import EventHook
+
+__all__ = [
+    'on_stock_picking_tracking_number',
+    'on_sale_order_status_change',
+]
 
 
-# example of new event firing
-# should be at the base_sale_multichannels level
-class stock_picking(orm.Model):
+# implemented at base_sale_multichannels level
 
-    _inherit = 'stock.picking'
+on_sale_order_status_change = EventHook()
+"""
+`on_sale_order_status_change` is fired when the status of a sale order
+has changed.
 
-    def write(self, cr, uid, ids, vals, context=None):
-        res = super(stock_picking, self).write(
-                cr, uid, ids, vals, context=context)
-        if vals.get('carrier_tracking_ref'):
-            for res_id in ids:
-                on_stock_picking_tracking_number.fire(
-                    Session(cr, uid, self.pool, context=context), res_id)
-        return res
+Listeners should take the following arguments:
+
+ * session: `Session` object
+ * record_id: id of the sale order
+
+"""
+
+on_stock_picking_tracking_number = EventHook()
+"""
+`on_stock_picking_tracking_number` is fired when a tracking number has been entered
+on a packing.
+
+Listeners should take the following arguments:
+
+ * session: `Session` object
+ * record_id: id of the packing
+
+"""

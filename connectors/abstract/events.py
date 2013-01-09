@@ -24,8 +24,6 @@ __all__ = [
     'on_record_create',
     'on_record_unlink',
     'on_workflow_signal',
-    'on_stock_picking_tracking_number',
-    'on_sale_order_status_change',
 ]
 
 class EventHook(object):
@@ -106,31 +104,6 @@ Listeners should take the following arguments:
 
 """
 
-on_sale_order_status_change = EventHook()
-"""
-`on_sale_order_status_change` is fired when the status of a sale order
-has changed.
-
-Listeners should take the following arguments:
-
- * session: `Session` object
- * record_id: id of the sale order
-
-"""
-
-on_stock_picking_tracking_number = EventHook()
-"""
-`on_stock_picking_tracking_number` is fired when a tracking number has been entered
-on a packing.
-
-Listeners should take the following arguments:
-
- * session: `Session` object
- * record_id: id of the packing
-
-"""
 # Some usual events should be implemented here
 # Events which may be specific for one connector
 # could be implemented in their own connector.
-
-
