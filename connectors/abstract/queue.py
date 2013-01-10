@@ -125,8 +125,8 @@ class FauxQueue(object):
 
             # the session create a cursor and manage its transactional state
             with session.own_transaction() as subsession:
-                _logger.debug('Execute task %d on the queue \'%s\'',
-                              task_id, queue)
+                _logger.debug('Execute task %d (%s) on the queue \'%s\'',
+                              task_id, task.task, queue)
                 try:
                     self._get_task(task.task)(subsession, **task.args)
                 except Exception as err:  # XXX catch which exception?
