@@ -2,7 +2,7 @@
 ##############################################################################
 #
 #    Author: Guewen Baconnier
-#    Copyright 2012 Guewen Baconnier
+#    Copyright 2012 Camptocamp SA
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -19,56 +19,11 @@
 #
 ##############################################################################
 
-import openerp.pooler
 import logging
-
-from contextlib import contextmanager
-
 _logger = logging.getLogger(__name__)
 
 
-class Session(object):
-
-    def __init__(self, cr, uid, pool, context=None, **kwargs):
-        self.cr = cr
-        self.uid = uid
-        self.pool = pool
-        if context is None:
-            context = {}
-        self.context = context
-
-    @contextmanager
-    def own_transaction(self):
-        """ Open a new transaction and ensure that it is correctly
-        closed.
-        """
-        db, new_pool = \
-                openerp.pooler.get_db_and_pool(self.cr.dbname)
-        subsession = Session(db.cursor(),
-                             self.uid,
-                             new_pool,
-                             context=self.context)
-        try:
-            yield subsession
-        except:
-            subsession.rollback()
-            raise
-        else:
-            subsession.commit()
-        finally:
-            subsession.close()
-
-    def commit(self):
-        self.cr.commit()
-
-    def rollback(self):
-        self.cr.rollback()
-
-    def close(self):
-        self.cr.close()
-
-
-class AbstractSynchronisation(object):
+class AbstractSynchronization(object):
     # TODO
     def __init__(self, *args, **kwargs):
         """
@@ -79,7 +34,7 @@ class AbstractSynchronisation(object):
         """
 
 
-class SingleImport(AbstractSynchronisation):
+class SingleImport(AbstractSynchronization):
 
     def __init__(self, reference, session, model_name, referential_id):
         self.reference = reference
@@ -192,7 +147,7 @@ class SingleImport(AbstractSynchronisation):
     #     after the commit"""
 
 
-class SingleExport(AbstractSynchronisation):
+class SingleExport(AbstractSynchronization):
 
     def __init__(self, reference, session, model_name, referential_id):
         self.reference = reference

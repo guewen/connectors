@@ -1,4 +1,3 @@
-from .connector import *
 from .events import *
 from .producers import *
 from .queue import *
@@ -7,3 +6,5 @@ from .exceptions import *
 from .processors import *
 from .tasks import *
 from .referrers import *
+from .synchronizers import *
+import session

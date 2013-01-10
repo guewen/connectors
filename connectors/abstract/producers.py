@@ -27,7 +27,7 @@ Implements producers of the events
 from openerp.osv import orm
 from openerp import pooler
 from openerp.osv.osv import object_proxy
-from .connector import Session
+from .session import Session
 from .events import (on_record_create,
                      on_record_write,
                      on_record_unlink,

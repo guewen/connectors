@@ -25,7 +25,7 @@ import sys
 from contextlib import closing
 from openerp.osv import orm, fields
 from openerp import pooler
-from .connector import Session
+from .session import Session
 
 _logger = logging.getLogger(__name__)
 

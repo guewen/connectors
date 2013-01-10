@@ -19,6 +19,8 @@
 #
 ##############################################################################
 
+# XXX 1 class per direction?
+
 
 class AbstractModelProcessor(object):
     """ Transform a record to a defined output
@@ -35,10 +37,10 @@ class AbstractModelProcessor(object):
     method_export = []
     sub_export = []  # sub export of o2m
 
-    def __init__(self, connector):
-        self.connector = connector
+    def __init__(self, synchronizer):
+        self.synchronizer = synchronizer
         # shortcut
-        self.model = self.connector.model
+        self.model = self.synchronizer.model
 
     @classmethod
     def match(cls, model):
@@ -75,7 +77,7 @@ class AbstractModelProcessor(object):
 
         for ref_attr, (oerp_attr, sub_cls) in self.sub_import:
             attr = record[ref_attr]  # not compatible with all record types
-            sub = sub_cls(self.connector)
+            sub = sub_cls(self.synchronizer)
             vals = sub._o2m_to_openerp(attr, parent_value=result)
             result[oerp_attr] = vals
 
@@ -96,4 +98,4 @@ class AbstractModelProcessor(object):
             result.append((0, 0, vals))
         return result
 
-# m2o should be imported by the connector before the transformation
+# m2o should be imported by the synchronizer before the transformation

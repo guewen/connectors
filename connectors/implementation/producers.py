@@ -21,7 +21,7 @@
 
 from openerp.osv import orm
 from .events import on_stock_picking_tracking_number
-from ..abstract.connector import Session
+from ..abstract.session import Session
 
 
 # example of new event firing

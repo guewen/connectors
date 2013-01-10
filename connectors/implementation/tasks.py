@@ -20,7 +20,7 @@
 ##############################################################################
 
 from .queue import TASKS
-from ..abstract.connector import SingleImport, SingleExport
+from ..abstract.synchronizers import SingleImport, SingleExport
 from ..abstract.references import REFERENCES
 
 
