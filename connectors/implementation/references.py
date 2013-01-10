@@ -19,8 +19,21 @@
 #
 ##############################################################################
 
-from ..abstract.references import Reference
+from ..abstract.references import Reference, RecordReferrer
+from ..abstract.connector import REGISTRY
 
 
 Magento1600 = Reference('magento', '1.6')
 Magento1700 = Reference('magento', '1.7')
+
+
+class SaleOrderReferrer(RecordReferrer):
+    model_name = 'sale.order'
+    # FIXME we must have a mean to put "Magento"
+    # which is valid for all versions
+    reference = Magento1700
+
+    # example: change behavior of links
+
+
+REGISTRY.register_record_referrer(SaleOrderReferrer)

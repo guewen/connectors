@@ -22,12 +22,14 @@
 import openerp.pooler
 
 from contextlib import contextmanager
+from .references import RecordReferrer
 
 
 class ConnectorRegistry(object):
     def __init__(self):
         self.connectors = set()
         self.processors = set()
+        self.record_referrers = set()
 
     def get_connector(self, reference):
         for connector in self.connectors:
@@ -40,6 +42,15 @@ class ConnectorRegistry(object):
             if processor.match(reference):
                 return processor
         raise ValueError('No matching processor found')
+
+    def get_record_referrer(self, model):
+        for referrer in self.record_referrers:
+            if referrer.match(model):
+                return referrer
+        return RecordReferrer  # default
+
+    def register_record_referrer(self, record_referrer):
+        self.record_referrers.add(record_referrer)
 
     def register_connector(self, connector):
         self.connectors.add(connector)
@@ -108,6 +119,7 @@ class Session(object):
 class SingleImport(object):
 
     connector_registry = REGISTRY
+    record_reference = RecordReference
 
     def __init__(self, session, model_name, external_id, mode='create', with_commit=False, **kwargs):
         self.session = session

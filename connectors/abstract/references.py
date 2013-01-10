@@ -37,20 +37,35 @@ class Reference(object):
         return 'Reference(\'%s\', \'%s\')' % (self.service, self.version)
 
 
-# TODO we need different implementations according to the model
-class RecordReference(object):
+
+class RecordReferrer(object):
     """ For one record of a model, capable to find an external or
     internal id, or create the link between them
     """
 
-    def __init__(self, model):
+    model_name = None  # default
+    reference = None
+
+    @classmethod
+    def match(cls, reference, model):
+        """ Identify the class to use
+        """
+        return (model._name == cls.model_name and
+                reference == reference)
+
+    def __init__(self, model, reference):
+        """
+        :param model: instance of the model
+        :param reference: XXX external.referential?
+        """
         self.model = model
+        self.reference = reference
 
     def to_openerp(self, external_id):
-        pass
+        """ Give the OpenERP ID for an external ID """
 
     def to_external(self, openerp_id):
-        pass
+        """ Give the external ID for an OpenERP ID """
 
     def bind(self, external_id, openerp_id):
-        pass
+        """ Create the link between an external ID and an OpenERP ID """
