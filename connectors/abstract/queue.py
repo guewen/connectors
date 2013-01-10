@@ -19,6 +19,8 @@
 #
 ##############################################################################
 import logging
+import traceback
+import sys
 
 from contextlib import closing
 from openerp.osv import orm, fields
@@ -86,6 +88,7 @@ class FauxQueue(object):
                                    ('done', 'Done')],
                                   string='State',
                                   readonly=True),
+        'traceback': fields.text('Traceback', readonly=True)
         }
 
     _defaults = {
@@ -127,7 +130,8 @@ class FauxQueue(object):
                 try:
                     self._get_task(task.task)(subsession, **task.args)
                 except Exception as err:  # XXX catch which exception?
-                    # we'll retry on the next run
+                    msg = ''.join(traceback.format_exception(*sys.exc_info()))
+                    task.write({'traceback': msg})
                     _logger.exception('Error during execution of task: %d',
                                       task_id)
                 else:

@@ -19,9 +19,11 @@
 #
 ##############################################################################
 
+import logging
 from ..abstract.references import Reference, RecordReferrer
 from ..abstract.connector import REGISTRY
 
+_logger = logging.getLogger(__name__)
 
 Magento1600 = Reference('magento', '1.6')
 Magento1700 = Reference('magento', '1.7')
@@ -37,3 +39,23 @@ class SaleOrderReferrer(RecordReferrer):
 
 
 REGISTRY.register_record_referrer(SaleOrderReferrer)
+
+
+class ResPartnerReferrer(RecordReferrer):
+    model_name = 'res.partner'
+    reference = Magento1700
+
+    def to_openerp(self, external_id):
+        """ Give the OpenERP ID for an external ID """
+        return 10
+
+    def to_external(self, openerp_id):
+        """ Give the external ID for an OpenERP ID """
+        return 15
+
+    def bind(self, external_id, openerp_id):
+        """ Create the link between an external ID and an OpenERP ID """
+        _logger.debug('bind openerp_id %s with external_id %s', openerp_id, external_id)
+
+
+REGISTRY.register_record_referrer(ResPartnerReferrer)

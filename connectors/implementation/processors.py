@@ -49,8 +49,8 @@ class MagentoModelProcessor(AbstractModelProcessor):
 class Product(MagentoModelProcessor):
     model_name = 'product.product'
 
-Magento1600.register_model_processor(Product)
-Magento1700.register_model_processor(Product)
+Magento1600Processor.register_model_processor(Product)
+Magento1700Processor.register_model_processor(Product)
 
 
 class Partner(MagentoModelProcessor):
@@ -58,5 +58,5 @@ class Partner(MagentoModelProcessor):
 
     direct_import = [('name', 'name')]
 
-Magento1600.register_model_processor(Partner)
-Magento1700.register_model_processor(Partner)
+Magento1600Processor.register_model_processor(Partner)
+Magento1700Processor.register_model_processor(Partner)

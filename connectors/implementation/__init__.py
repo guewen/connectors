@@ -4,3 +4,4 @@ from .events import *
 import consumers
 from .references import *
 import tasks
+import processors

@@ -20,9 +20,12 @@
 ##############################################################################
 
 import openerp.pooler
+import logging
 
 from contextlib import contextmanager
 from .references import RecordReferrer, Reference
+
+_logger = logging.getLogger(__name__)
 
 
 class ConnectorRegistry(object):
@@ -47,7 +50,7 @@ class ConnectorRegistry(object):
         for referrer in self.record_referrers:
             if referrer.match(reference, model):
                 return referrer
-        return RecordReferrer  # default
+        raise ValueError('No matching referrer found')
 
     def register_record_referrer(self, record_referrer):
         self.record_referrers.add(record_referrer)
@@ -132,7 +135,7 @@ class SingleImport(object):
 
         self._reference = None
         self.record_referrer = self.connector_registry\
-                .get_record_referrer(self.reference, self.model)
+                .get_record_referrer(self.reference, self.model)()
 
     @property
     def reference(self):
@@ -207,17 +210,31 @@ class SingleImport(object):
         return True
 
     def _transform_data(self, external_data):
-        # XXX get reference
-        # self.connector_registry.get_processor(reference)
-        return
+        processor = self.connector_registry.get_processor(self.reference)(self)
+        # from where do come the default values?
+        return processor.to_openerp(external_data, defaults={})
 
     def _create(self, data):
         # delegate creation of the record
-        return
+        openerp_id = self.model.create(self.session.cr, self.session.uid,
+                                       data, self.session.context)
+        _logger.debug('openerp_id: %d created for external_id %s',
+                      openerp_id, self.external_id)
+        # bind
+        self.record_referrer.bind(self.external_id, openerp_id)
+        return openerp_id
 
     def _update(self, data):
         # delegate update of the record
-        return
+        openerp_id = self.record_referrer.to_openerp(self.external_id)
+        if openerp_id is None:  # it has been deleted?
+            openerp_id = self._create(data)
+        else:
+            self.model.write(self.session.cr, self.session.uid,
+                             openerp_id, data, self.session.context)
+            _logger.debug('openerp_id: %d updated for external_id %s',
+                          openerp_id, self.external_id)
+        return openerp_id
 
     # def _after_commit():
     #     """implement only if special actions need to be done

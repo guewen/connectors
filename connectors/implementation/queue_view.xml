@@ -11,6 +11,9 @@
                         <field name="task"/>
                         <field name="state"/>
                     </group>
+                    <group>
+                        <field nolabel="1" name="traceback"/>
+                    </group>
                    </sheet>
                 </form>
             </field>

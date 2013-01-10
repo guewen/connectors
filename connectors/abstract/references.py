@@ -53,14 +53,6 @@ class RecordReferrer(object):
         return (model._name == cls.model_name and
                 reference == reference)
 
-    def __init__(self, model, reference):
-        """
-        :param model: instance of the model
-        :param reference: XXX external.referential?
-        """
-        self.model = model
-        self.reference = reference
-
     def to_openerp(self, external_id):
         """ Give the OpenERP ID for an external ID """
 
@@ -69,3 +61,4 @@ class RecordReferrer(object):
 
     def bind(self, external_id, openerp_id):
         """ Create the link between an external ID and an OpenERP ID """
+
