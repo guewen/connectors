@@ -20,13 +20,15 @@
 ##############################################################################
 
 
-class ConnectorException(RuntimeError):
-    """ Base Exception for the connectors """
+class TasksRegistry(object):
 
+    def __init__(self):
+        self.tasks = {}
 
-class FailedTask(ConnectorException):
-    """ Raised when a task fails"""
+    def get(self, task):
+        if task in self.tasks:
+            return self.tasks[task]
+        raise ValueError('No matching task found')
 
-
-class InvalidDataError(ConnectorException):
-    """ Raised when some data to import or export is invalid """
+    def register(self, task_name, function):
+        self.tasks[task_name] = function

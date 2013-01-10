@@ -21,7 +21,7 @@
 
 from openerp.osv import orm
 from ..abstract.queue import FauxQueue
-from ..abstract.connector import TasksRegistry
+from ..abstract.tasks import TasksRegistry
 
 
 TASKS = TasksRegistry()

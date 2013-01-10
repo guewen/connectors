@@ -23,59 +23,8 @@ import openerp.pooler
 import logging
 
 from contextlib import contextmanager
-from .references import RecordReferrer, Reference
 
 _logger = logging.getLogger(__name__)
-
-
-class ConnectorRegistry(object):
-    def __init__(self):
-        self.connectors = set()
-        self.processors = set()
-        self.record_referrers = set()
-
-    def get_connector(self, reference):
-        for connector in self.connectors:
-            if connector.match(reference):
-                return connector
-        raise ValueError('No matching connector found')
-
-    def get_processor(self, reference):
-        for processor in self.processors:
-            if processor.match(reference):
-                return processor
-        raise ValueError('No matching processor found')
-
-    def get_record_referrer(self, reference, model):
-        for referrer in self.record_referrers:
-            if referrer.match(reference, model):
-                return referrer
-        raise ValueError('No matching referrer found')
-
-    def register_record_referrer(self, record_referrer):
-        self.record_referrers.add(record_referrer)
-
-    def register_connector(self, connector):
-        self.connectors.add(connector)
-
-    def register_processor(self, processor):
-        self.processors.add(processor)
-
-REGISTRY = ConnectorRegistry()
-
-
-class TasksRegistry(object):
-
-    def __init__(self):
-        self.tasks = {}
-
-    def get(self, task):
-        if task in self.tasks:
-            return self.tasks[task]
-        raise ValueError('No matching task found')
-
-    def register(self, task_name, function):
-        self.tasks[task_name] = function
 
 
 class Session(object):
@@ -119,44 +68,47 @@ class Session(object):
         self.cr.close()
 
 
-class SingleImport(object):
+class AbstractSynchronisation(object):
+    # TODO
+    def __init__(self, *args, **kwargs):
+        """
+        """
 
-    connector_registry = REGISTRY
+    def work(self, *args, **kwargs):
+        """ Placeholder for the synchronisation
+        """
 
-    def __init__(self, session, model_name, external_id, referential_id,
-                 mode='create', with_commit=False, **kwargs):
+
+class SingleImport(AbstractSynchronisation):
+
+    def __init__(self, reference, session, model_name, referential_id):
+        self.reference = reference
         self.session = session
         self.model = self.session.pool.get(model_name)
-        self.external_id = external_id
-        assert mode in ('create', 'update'), "mode should be create or update"
-        self.mode = mode
-        self.with_commit = with_commit
         self.referential_id = referential_id  # sometimes it can be a shop...
-
         self._reference = None
-        self.record_referrer = self.connector_registry\
-                .get_record_referrer(self.reference, self.model)()
+        self._record_referrer = None
 
     @property
-    def reference(self):
-        if self._reference is None:
-            # ref = self.session.pool.get('external.referential').browse(
-            #     self.session.cr, self.session.uid, self.referential_id,
-            #     self.session.context)
-            # self._reference = Reference(ref.service, ref.version)
-            self._reference = Reference('magento', '1.7')
-        return self._reference
+    def record_referrer(self):
+        if self._record_referrer is None:
+            ref = self.reference.get_record_referrer(self.model)
+            self._record_referrer = ref()
 
-    def import_record(self):
+        return self._record_referrer
+
+    def work(self, external_id, mode, with_commit=False):
         """ Import the record
 
         Delegates the knowledge to specialized instances
         """
-        if self._has_to_skip():
-            return
+        assert mode in ('create', 'update'), "mode should be create or update"
 
         # TODO adapter for external APIs?
-        ext_data = self._get_external_data()
+        ext_data = self._get_external_data(external_id)
+
+        if self._has_to_skip(external_id, ext_data):
+            return
 
         # import the missing linked resources
         self._import_dependencies(ext_data)
@@ -167,27 +119,30 @@ class SingleImport(object):
 
         # special check on data before import
         self._validate_data(transformed_data)
-        if self.mode == 'create':
+        if mode == 'create':
             openerp_id = self._create(transformed_data)
         else:
-            openerp_id = self._update(transformed_data)
+            openerp_id = self.record_referrer.to_openerp(external_id)
+            openerp_id = self._update(openerp_id, transformed_data)
 
-        if self.with_commit:
+        self.record_referrer.bind(external_id, openerp_id)
+
+        if with_commit:
             self.session.commit()
 
         if hasattr(self, '_after_commit'):
-            if self.with_commit is False:
+            if with_commit is False:
                 raise ValueError('An _after_commit method is declared '
                                  'but SingleImport is initialized without commit')
             getattr(self, '_after_commit')()
 
         return openerp_id
 
-    def _has_to_skip(self):
+    def _has_to_skip(self, external_id, external_data):
         # delegate a check of existence of external_id
         return False
 
-    def _get_external_data(self):
+    def _get_external_data(self, external_id):
         # delegate a call to the backend
         return {'name': 'Guewen Baconnier'}
 
@@ -206,11 +161,12 @@ class SingleImport(object):
 
         Example: pro-actively check before the ``Model.create`` if
         some fields are missing
+
+        Raise `InvalidDataError`?
         """
-        return True
 
     def _transform_data(self, external_data):
-        processor = self.connector_registry.get_processor(self.reference)(self)
+        processor = self.reference.get_processor(self.model)(self)
         # from where do come the default values?
         return processor.to_openerp(external_data, defaults={})
 
@@ -218,22 +174,17 @@ class SingleImport(object):
         # delegate creation of the record
         openerp_id = self.model.create(self.session.cr, self.session.uid,
                                        data, self.session.context)
-        _logger.debug('openerp_id: %d created for external_id %s',
-                      openerp_id, self.external_id)
-        # bind
-        self.record_referrer.bind(self.external_id, openerp_id)
+        _logger.debug('openerp_id: %d created', openerp_id)
         return openerp_id
 
-    def _update(self, data):
+    def _update(self, openerp_id, data):
         # delegate update of the record
-        openerp_id = self.record_referrer.to_openerp(self.external_id)
         if openerp_id is None:  # it has been deleted?
             openerp_id = self._create(data)
         else:
             self.model.write(self.session.cr, self.session.uid,
                              openerp_id, data, self.session.context)
-            _logger.debug('openerp_id: %d updated for external_id %s',
-                          openerp_id, self.external_id)
+            _logger.debug('openerp_id: %d updated', openerp_id)
         return openerp_id
 
     # def _after_commit():
@@ -241,78 +192,94 @@ class SingleImport(object):
     #     after the commit"""
 
 
-class SingleExport(object):
+class SingleExport(AbstractSynchronisation):
 
-    connector_registry = REGISTRY
-
-    def __init__(self, session, model_name, record_id,
-                 mode='create', with_commit=False,
-                 fields=None, **kwargs):
+    def __init__(self, reference, session, model_name, referential_id):
+        self.reference = reference
         self.session = session
         self.model = self.session.pool.get(model_name)
-        self.record_id = record_id
-        assert mode in ('create', 'update'), "mode should be create or update"
-        self.mode = mode
-        self.with_commit = with_commit
-        self.fields = fields
+        self.referential_id = referential_id  # sometimes it can be a shop...
+        self._reference = None
+        self._record_referrer = None
 
-    def export_record(self):
-        """ Import the record
+    @property
+    def record_referrer(self):
+        if self._record_referrer is None:
+            ref = self.reference.get_record_referrer(self.model)
+            self._record_referrer = ref()
+
+        return self._record_referrer
+
+    def work(self, openerp_id, mode, fields=None, with_commit=False):
+        """ Export the record
 
         Delegates the knowledge to specialized instances
 
         :param mode: could be 'create' or 'update'
         """
-        if self._has_to_skip():
+        assert mode in ('create', 'update'), "mode should be create or update"
+
+        if fields is None:
+            fields = {}
+
+        record = self._browse_record(openerp_id)
+
+        if self._has_to_skip(record):
             return
 
-        record = self._browse_record()
-
-        # import the missing linked resources
+        # export the missing linked resources
         self._export_dependencies(record)
 
         # default_values = self._default_values()
 
-        transformed_data = self._transform_data(record)
+        transformed_data = self._transform_data(record, fields)
 
         # special check on data before import
         self._validate_data(transformed_data)
-        external_id = getattr(self, '_%s' % self.mode)(transformed_data)
+        if mode == 'create':
+            external_id = self._create(transformed_data)
+        else:
+            external_id = self.record_referrer.to_external(openerp_id)
+            external_id = self._update(external_id, transformed_data)
 
-        if self.with_commit:
+        self.record_referrer.bind(external_id, openerp_id)
+
+        if with_commit:
             self.session.commit()
 
         if hasattr(self, '_after_commit'):
-            if self.with_commit is False:
+            if with_commit is False:
                 raise ValueError('An _after_commit method is declared '
                                  'but SingleExport is initialized without commit')
             getattr(self, '_after_commit')()
 
         return external_id
 
-    def _has_to_skip(self):
-        # delegate a check of existence of external_id
+    def _has_to_skip(self, record):
         return False
 
-    def _browse_record(self):
-        # delegate a call to browse the record
-        return
+    def _browse_record(self, openerp_id):
+        return self.model.browse(self.session.cr,
+                                 self.session.uid,
+                                 openerp_id,
+                                 self.session.context)
 
-    def _export_dependencies(self, data):
+    def _export_dependencies(self, record):
         # call SingleExport#export for each dependency
         # no commit should be done inside of a SingleImport
         # flow
-        return {}
+        return
 
     def _validate_data(self, data):
-        """ Check if the values to import are correct
+        """ Check if the values to export are correct
 
         Example: pro-actively check before the ``Model.create`` if
         some fields are missing
-        """
-        return True
 
-    def _transform_data(self, external_data):
+        Raise `InvalidDataError`?
+        """
+
+    def _transform_data(self, record, fields):
         # delegate a call to mapping
         return {}
 
@@ -320,7 +287,7 @@ class SingleExport(object):
         # delegate creation of the record
         return
 
-    def _update(self, data):
+    def _update(self, external_id, data):
         # delegate update of the record
         return
 

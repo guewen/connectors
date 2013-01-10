@@ -20,30 +20,30 @@
 ##############################################################################
 
 import logging
-from ..abstract.references import Reference, RecordReferrer
-from ..abstract.connector import REGISTRY
+from ..abstract.references import (REFERENCES,
+                                   Reference,
+                                   ModelRecordReferrer)
 
 _logger = logging.getLogger(__name__)
 
-Magento1600 = Reference('magento', '1.6')
-Magento1700 = Reference('magento', '1.7')
+Magento = Reference('magento')
+REFERENCES.register_reference(Magento)
+
+Magento1600 = Reference('magento', '1.6', parent=Magento)
+REFERENCES.register_reference(Magento1600)
+
+Magento1700 = Reference('magento', '1.7', parent=Magento)
+REFERENCES.register_reference(Magento1700)
 
 
-class SaleOrderReferrer(RecordReferrer):
+class SaleOrderReferrer(ModelRecordReferrer):
     model_name = 'sale.order'
-    # FIXME we must have a mean to put "Magento"
-    # which is valid for all versions
-    reference = Magento1700
 
-    # example: change behavior of links
+Magento.register_record_referrer(SaleOrderReferrer)
 
 
-REGISTRY.register_record_referrer(SaleOrderReferrer)
-
-
-class ResPartnerReferrer(RecordReferrer):
+class ResPartnerReferrer(ModelRecordReferrer):
     model_name = 'res.partner'
-    reference = Magento1700
 
     def to_openerp(self, external_id):
         """ Give the OpenERP ID for an external ID """
@@ -58,4 +58,4 @@ class ResPartnerReferrer(RecordReferrer):
         _logger.debug('bind openerp_id %s with external_id %s', openerp_id, external_id)
 
 
-REGISTRY.register_record_referrer(ResPartnerReferrer)
+Magento.register_record_referrer(ResPartnerReferrer)

@@ -25,7 +25,7 @@ import sys
 from contextlib import closing
 from openerp.osv import orm, fields
 from openerp import pooler
-from .connector import REGISTRY, Session
+from .connector import Session
 
 _logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class FauxQueue(object):
                     _logger.exception('Error during execution of task: %d',
                                       task_id)
                 else:
-                    task.write({'state': 'done'})
+                    task.write({'state': 'done', 'traceback': False})
 
             # release lock on the row
             session.commit()

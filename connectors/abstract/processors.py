@@ -20,56 +20,6 @@
 ##############################################################################
 
 
-class AbstractProcessor(object):
-    """ Transform a record to a defined output
-    """
-
-    reference = None  # has to be defined in subclasses
-
-    processors = {}
-
-    @classmethod
-    def match(cls, reference):
-        """ Find the appropriate class to transform
-        the record
-
-        :param reference: `Reference` instance for
-            which we want a transformation
-        """
-        if cls.reference is None:
-            raise NotImplementedError
-        return reference == cls.reference
-
-    @classmethod
-    def register_model_processor(cls, processor):
-        """ Register the processor for a model """
-        cls.processors[processor.model_name] = processor
-
-    def __init__(self, connector):
-        self.connector = connector
-
-    def processor(self, model):
-        """ return an instance processor for a model
-
-        :param model: instance of the model
-        :return: instance of the concrete `AbstractModelProcessor`
-                 for the model
-        """
-        return self.processors[model._name](self.connector)
-
-    def to_openerp(self, record, defaults=None):
-        """ Transform an external record to an OpenERP record
-        """
-        return self.processor(self.connector.model)\
-                .to_openerp(record, defaults=defaults)
-
-    def to_reference(self, record, defaults=None):
-        """ Transform an OpenERP record to an external record
-        """
-        return self.processor(self.connector.model)\
-                .to_reference(record, defaults=defaults)
-
-
 class AbstractModelProcessor(object):
     """ Transform a record to a defined output
     """
@@ -89,6 +39,18 @@ class AbstractModelProcessor(object):
         self.connector = connector
         # shortcut
         self.model = self.connector.model
+
+    @classmethod
+    def match(cls, model):
+        """ Find the appropriate class to transform
+        the record
+
+        :param reference: `Reference` instance for
+            which we want a transformation
+        """
+        if cls.model_name is None:
+            raise NotImplementedError
+        return cls.model_name == model._name
 
     def to_openerp(self, record, defaults=None, parent_values=None):
         """ Transform an external record to an OpenERP record

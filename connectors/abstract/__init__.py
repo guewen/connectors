@@ -5,3 +5,4 @@ from .queue import *
 import consumers
 from .exceptions import *
 from .processors import *
+from .tasks import *

@@ -21,9 +21,11 @@
 
 from .queue import TASKS
 from ..abstract.connector import SingleImport, SingleExport
+from ..abstract.references import REFERENCES
 
-def import_generic(session, model_name=None, record_id=None, mode='create',
-                   referential_id=None):
+
+def _import_generic(session, model_name=None, record_id=None, mode='create',
+                    referential_id=None):
     """ Import a record from the external referential
 
     Use keyword arguments for the task arguments
@@ -34,22 +36,29 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
     :param mode: 'create' or 'update'
     :param referential_id: id of external.referential
     """
+    # extref = session.pool.get('external.referential').browse(
+    #         session.cr, session.uid, referential_id, session.context)
+    # ref = ReferenceRegistry.get_reference(extref.service, extref.version)
+    ref = REFERENCES.get_reference('magento', '1.7')
+
     # FIXME: not sure that we want forcefully a new cr
     # when we run the task, could it be called from a `_get_dependencies`
     # as instance?
     # should we commit as well?
-    with session.own_transaction() as subsession:
-        importer = SingleImport(
-                subsession, model_name, record_id, referential_id,
-                mode=mode, with_commit=True)
-        importer.import_record()
+
+    # TODO factory for synchronizer
+    importer = SingleImport(ref,
+                            session,
+                            model_name,
+                            referential_id)
+    importer.work(record_id, mode, with_commit=True)
 
 
-TASKS.register('import_generic', import_generic)
+TASKS.register('import_generic', _import_generic)
 
 
-def export_generic(session, model_name=None, record_id=None,
-                   mode='create', fields=None, referential_id=None):
+def _export_generic(session, model_name=None, record_id=None,
+                    mode='create', fields=None, referential_id=None):
     """ Export a record to the external referential
 
     Use keyword arguments for the task arguments
@@ -66,15 +75,23 @@ def export_generic(session, model_name=None, record_id=None,
     # when we run the task, could it be called from a `_get_dependencies`
     # as instance?
     # should we commit as well?
-    with session.own_transaction() as subsession:
-        exporter = SingleExport(
-                subsession,
-                model_name,
-                record_id,
-                mode=mode,
-                with_commit=True,
-                fields=fields)
-        exporter.export_record()
+
+    # TODO move the search of the Reference in the external.referential
+    # model
+
+    # extref = session.pool.get('external.referential').browse(
+    #         session.cr, session.uid, referential_id, session.context)
+    # ref = ReferenceRegistry.get_reference(extref.service, extref.version)
+    ref = REFERENCES.get_reference('magento', '1.7')
+
+    # factory for the synchronizers
+    exporter = SingleExport(ref,
+                            session,
+                            model_name,
+                            referential_id)
+    # if the task export with commit, it should not be called
+    # for subimports
+    exporter.work(record_id, mode, fields=fields, with_commit=True)
 
 
-TASKS.register('export_generic', export_generic)
+TASKS.register('export_generic', _export_generic)
