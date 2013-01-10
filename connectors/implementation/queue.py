@@ -19,13 +19,9 @@
 #
 ##############################################################################
 
-from openerp.osv import orm, fields
+from openerp.osv import orm
 from ..abstract.queue import FauxQueue
-from ..abstract.connector import (
-        TasksRegistry,
-        SingleImport,
-        SingleExport
-        )
+from ..abstract.connector import TasksRegistry
 
 
 TASKS = TasksRegistry()
@@ -37,58 +33,3 @@ class faux_queue_magento(FauxQueue, orm.Model):
 
 faux_queue_magento.register_queue('default', 'Default queue')
 faux_queue_magento.register_queue('orders', 'Sales Orders')
-
-
-
-def import_generic(session, model_name=None, record_id=None, mode='create'):
-    """ Import a record from the external referential
-
-    Use keyword arguments for the task arguments
-
-    :param session: `Session` object
-    :param model_name: name of the model as str
-    :param record_id: id of the record on the external referential
-    :param mode: 'create' or 'update'
-    """
-    # FIXME: not sure that we want forcefully a new cr
-    # when we run the task, could it be called from a `_get_dependencies`
-    # as instance?
-    # should we commit as well?
-    with session.own_transaction() as subsession:
-        importer = SingleImport(
-                subsession, model_name, record_id, mode=mode, with_commit=True)
-        importer.import_record()
-
-
-TASKS.register('import_generic', import_generic)
-
-
-def export_generic(session, model_name=None, record_id=None,
-                   mode='create', fields=None):
-    """ Export a record to the external referential
-
-    Use keyword arguments for the task arguments
-
-    :param session: `Session` object
-    :param model_name: name of the model as str
-    :param record_id: id of the record on the external referential
-    :param mode: 'create' or 'update'
-    :param fields: optional dict of fields to export, if None,
-                   all the fields are exported
-    """
-    # FIXME: not sure that we want forcefully a new cr
-    # when we run the task, could it be called from a `_get_dependencies`
-    # as instance?
-    # should we commit as well?
-    with session.own_transaction() as subsession:
-        exporter = SingleExport(
-                subsession,
-                model_name,
-                record_id,
-                mode=mode,
-                with_commit=True,
-                fields=fields)
-        exporter.export_record()
-
-
-TASKS.register('export_generic', export_generic)

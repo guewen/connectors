@@ -22,7 +22,7 @@
 import openerp.pooler
 
 from contextlib import contextmanager
-from .references import RecordReferrer
+from .references import RecordReferrer, Reference
 
 
 class ConnectorRegistry(object):
@@ -43,9 +43,9 @@ class ConnectorRegistry(object):
                 return processor
         raise ValueError('No matching processor found')
 
-    def get_record_referrer(self, model):
+    def get_record_referrer(self, reference, model):
         for referrer in self.record_referrers:
-            if referrer.match(model):
+            if referrer.match(reference, model):
                 return referrer
         return RecordReferrer  # default
 
@@ -119,26 +119,40 @@ class Session(object):
 class SingleImport(object):
 
     connector_registry = REGISTRY
-    record_reference = RecordReference
 
-    def __init__(self, session, model_name, external_id, mode='create', with_commit=False, **kwargs):
+    def __init__(self, session, model_name, external_id, referential_id,
+                 mode='create', with_commit=False, **kwargs):
         self.session = session
         self.model = self.session.pool.get(model_name)
         self.external_id = external_id
         assert mode in ('create', 'update'), "mode should be create or update"
         self.mode = mode
         self.with_commit = with_commit
+        self.referential_id = referential_id  # sometimes it can be a shop...
+
+        self._reference = None
+        self.record_referrer = self.connector_registry\
+                .get_record_referrer(self.reference, self.model)
+
+    @property
+    def reference(self):
+        if self._reference is None:
+            # ref = self.session.pool.get('external.referential').browse(
+            #     self.session.cr, self.session.uid, self.referential_id,
+            #     self.session.context)
+            # self._reference = Reference(ref.service, ref.version)
+            self._reference = Reference('magento', '1.7')
+        return self._reference
 
     def import_record(self):
         """ Import the record
 
         Delegates the knowledge to specialized instances
-
-        :param mode: could be 'create' or 'update'
         """
         if self._has_to_skip():
             return
 
+        # TODO adapter for external APIs?
         ext_data = self._get_external_data()
 
         # import the missing linked resources
@@ -150,7 +164,10 @@ class SingleImport(object):
 
         # special check on data before import
         self._validate_data(transformed_data)
-        openerp_id = getattr(self, '_%s' % self.mode)(transformed_data)
+        if self.mode == 'create':
+            openerp_id = self._create(transformed_data)
+        else:
+            openerp_id = self._update(transformed_data)
 
         if self.with_commit:
             self.session.commit()

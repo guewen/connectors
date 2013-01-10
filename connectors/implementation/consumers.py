@@ -40,16 +40,17 @@ def record_created(session, model_name, record_id):
     if not model_name in SYNC_MODELS:
         return
     # TODO: open modification of the queue to use
-    # TODO: task created could be different according
-    # to the model
+    # TODO: task created could be different according to the model
+    # example: loop on referentials of the record and create a task per
+    # referential
     session.pool.get('faux.queue.magento').delay(
             session.cr, session.uid,
             'default',
             'export_generic',
             model_name=model_name,
             record_id=record_id,
-            mode='create'
-            )
+            mode='create',
+            referential_id=1)
 
 on_record_create.subscribe(record_created)
 
@@ -65,8 +66,8 @@ def record_written(session, model_name, record_id, fields):
             model_name=model_name,
             record_id=record_id,
             mode='update',
-            fields=fields
-            )
+            fields=fields,
+            referential_id=1)
 
 on_record_write.subscribe(record_written)
 
