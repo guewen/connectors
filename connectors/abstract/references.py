@@ -98,29 +98,3 @@ class Reference(object):
 
     def register_processor(self, processor):
         self._processors.add(processor)
-
-
-class ModelRecordReferrer(object):
-    """ For one record of a model, capable to find an external or
-    internal id, or create the link between them
-    """
-
-    model_name = None  # define in sub-classes
-
-    @classmethod
-    def match(cls, model):
-        """ Identify the class to use
-        """
-        if cls.model_name is None:
-            raise NotImplementedError
-        return cls.model_name == model._name
-
-    def to_openerp(self, external_id):
-        """ Give the OpenERP ID for an external ID """
-
-    def to_external(self, openerp_id):
-        """ Give the external ID for an OpenERP ID """
-
-    def bind(self, external_id, openerp_id):
-        """ Create the link between an external ID and an OpenERP ID """
-

@@ -19,14 +19,27 @@
 #
 ##############################################################################
 
-from ..abstract.references import REFERENCES, Reference
 
+class ModelRecordReferrer(object):
+    """ For one record of a model, capable to find an external or
+    internal id, or create the link between them
+    """
 
-Magento = Reference('magento')
-REFERENCES.register_reference(Magento)
+    model_name = None  # define in sub-classes
 
-Magento1600 = Reference('magento', '1.6', parent=Magento)
-REFERENCES.register_reference(Magento1600)
+    @classmethod
+    def match(cls, model):
+        """ Identify the class to use
+        """
+        if cls.model_name is None:
+            raise NotImplementedError
+        return cls.model_name == model._name
 
-Magento1700 = Reference('magento', '1.7', parent=Magento)
-REFERENCES.register_reference(Magento1700)
+    def to_openerp(self, external_id):
+        """ Give the OpenERP ID for an external ID """
+
+    def to_external(self, openerp_id):
+        """ Give the external ID for an OpenERP ID """
+
+    def bind(self, external_id, openerp_id):
+        """ Create the link between an external ID and an OpenERP ID """

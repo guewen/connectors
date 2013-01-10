@@ -19,14 +19,33 @@
 #
 ##############################################################################
 
-from ..abstract.references import REFERENCES, Reference
+import logging
+from ..abstract.referrers import ModelRecordReferrer
+from .references import Magento
+
+_logger = logging.getLogger(__name__)
 
 
-Magento = Reference('magento')
-REFERENCES.register_reference(Magento)
+class SaleOrderReferrer(ModelRecordReferrer):
+    model_name = 'sale.order'
 
-Magento1600 = Reference('magento', '1.6', parent=Magento)
-REFERENCES.register_reference(Magento1600)
+Magento.register_record_referrer(SaleOrderReferrer)
 
-Magento1700 = Reference('magento', '1.7', parent=Magento)
-REFERENCES.register_reference(Magento1700)
+
+class ResPartnerReferrer(ModelRecordReferrer):
+    model_name = 'res.partner'
+
+    def to_openerp(self, external_id):
+        """ Give the OpenERP ID for an external ID """
+        return 10
+
+    def to_external(self, openerp_id):
+        """ Give the external ID for an OpenERP ID """
+        return 15
+
+    def bind(self, external_id, openerp_id):
+        """ Create the link between an external ID and an OpenERP ID """
+        _logger.debug('bind openerp_id %s with external_id %s', openerp_id, external_id)
+
+
+Magento.register_record_referrer(ResPartnerReferrer)
