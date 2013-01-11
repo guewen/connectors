@@ -19,14 +19,14 @@
 #
 ##############################################################################
 
-from ..abstract.references import REFERENCES, Reference
+from ..abstract.references import register_reference, Reference
 
 
 Magento = Reference('magento')
-REFERENCES.register_reference(Magento)
+register_reference(Magento)
 
-Magento1600 = Reference('magento', '1.6', parent=Magento)
-REFERENCES.register_reference(Magento1600)
+Magento1600 = Reference(parent=Magento, version='1.6')
+register_reference(Magento1600)
 
-Magento1700 = Reference('magento', '1.7', parent=Magento)
-REFERENCES.register_reference(Magento1700)
+Magento1700 = Reference(parent=Magento, version='1.7')
+register_reference(Magento1700)

@@ -58,11 +58,13 @@ class Reference(object):
     Example::
 
         magento = Reference('magento')
-        magento1700 = Reference('magento', '1.7', parent=magento)
+        magento1700 = Reference(parent=magento, version='1.7')
 
     """
-    def __init__(self, service, version=None, parent=None):
-        self.service = service
+    def __init__(self, service=None, version=None, parent=None):
+        if service is None and parent is None:
+            raise ValueError('A service or a parent service is expected')
+        self._service = service
         self.version = version
         self.parent = parent
         self._processors = set()
@@ -72,6 +74,10 @@ class Reference(object):
     def match(self, service, version):
         return (self.service == service and
                 self.version == version)
+
+    @property
+    def service(self):
+        return self._service or self.parent.service
 
     def __str__(self):
         return repr(self)
