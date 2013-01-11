@@ -24,7 +24,11 @@ _logger = logging.getLogger(__name__)
 
 
 class AbstractSynchronization(object):
-    # TODO
+
+    # implement in sub-classes
+    model_name = None
+    synchronization_type = None
+
     def __init__(self, *args, **kwargs):
         """
         """
@@ -33,8 +37,21 @@ class AbstractSynchronization(object):
         """ Placeholder for the synchronisation
         """
 
+    @classmethod
+    def match(cls, synchronization_type, model):
+        """ Find the good class """
+        if hasattr(model, '_name'):  # model instance
+            model_name = model._name
+        else:
+            model_name = model  # str
+        return (cls.synchronization_type == synchronization_type and
+                cls.model_name == model_name)
+
 
 class SingleImport(AbstractSynchronization):
+
+    model_name = None  # implement in sub-classes
+    synchronization_type = 'import_record'
 
     def __init__(self, reference, session, model_name, referential_id):
         self.reference = reference
@@ -99,7 +116,7 @@ class SingleImport(AbstractSynchronization):
 
     def _get_external_data(self, external_id):
         # delegate a call to the backend
-        return {'name': 'Guewen Baconnier'}
+        return
 
     def _import_dependencies(self, data):
         # call SingleImport#import for each dependency
@@ -148,6 +165,9 @@ class SingleImport(AbstractSynchronization):
 
 
 class SingleExport(AbstractSynchronization):
+
+    model_name = None  # implement in sub-classes
+    synchronization_type = 'export_record'
 
     def __init__(self, reference, session, model_name, referential_id):
         self.reference = reference

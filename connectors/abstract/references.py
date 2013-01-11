@@ -33,12 +33,33 @@ class ReferenceRegistry(object):
         raise ValueError('No reference found for %s %s' %
                          service, version)
 
+# it all starts here!
 REFERENCES = ReferenceRegistry()
+
+def get_reference(service, version):
+    return REFERENCES.get_reference(service, version)
+
+def register_reference(reference):
+    REFERENCES.register_reference(reference)
 
 
 class Reference(object):
     """ A reference represents an external system
     like Magento, Prestashop, Redmine, ...
+
+    A reference can hold a version.
+
+    The references contains all the classes they are able to use
+    (processors, referrers, synchronizers) and return the appropriate
+    class to use for a model.  When a reference is linked to a parent
+    and no particular processor, synchronizer or referrer is defined, it
+    will use the parent's one.
+
+    Example::
+
+        magento = Reference('magento')
+        magento1700 = Reference('magento', '1.7', parent=magento)
+
     """
     def __init__(self, service, version=None, parent=None):
         self.service = service
@@ -46,7 +67,7 @@ class Reference(object):
         self.parent = parent
         self._processors = set()
         self._record_referrer = None
-        # self.connectors = set()
+        self._synchronizers = set()
 
     def match(self, service, version):
         return (self.service == service and
@@ -60,11 +81,18 @@ class Reference(object):
             return 'Reference(\'%s\', \'%s\')' % (self.service, self.version)
         return 'Reference(\'%s\')' % self.service
 
-    # def get_connector(self, reference):
-    #     for connector in self.connectors:
-    #         if connector.match(reference):
-    #             return connector
-    #     raise ValueError('No matching connector found')
+    def get_synchronizer(self, synchro_type, model):
+        synchronizer = None
+        if self._synchronizers:
+            for sync in self._synchronizers:
+                if sync.match(synchro_type, model):
+                    synchronizer = sync
+                    break
+        if synchronizer is None and self.parent:
+            synchronizer = self.parent.get_synchronizer(synchro_type, model)
+            if synchronizer is None:
+                raise ValueError('No matching synchronizer found')
+        return synchronizer
 
     def get_processor(self, model):
         processor = None
@@ -93,8 +121,14 @@ class Reference(object):
     def register_record_referrer(self, record_referrer):
         self._record_referrer = record_referrer
 
-    # def register_connector(self, connector):
-    #     self.connectors.add(connector)
+    def register_synchronizer(self, synchronizer):
+        self._synchronizers.add(synchronizer)
 
     def register_processor(self, processor):
         self._processors.add(processor)
+
+    def unregister_synchronizer(self, synchronizer):
+        self._synchronizers.remove(synchronizer)
+
+    def unregister_processor(self, processor):
+        self._processors.remove(processor)

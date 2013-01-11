@@ -21,7 +21,7 @@
 
 from .queue import TASKS
 from ..abstract.synchronizers import SingleImport, SingleExport
-from ..abstract.references import REFERENCES
+from ..abstract.references import get_reference
 
 
 def _import_generic(session, model_name=None, record_id=None, mode='create',
@@ -38,21 +38,17 @@ def _import_generic(session, model_name=None, record_id=None, mode='create',
     """
     # extref = session.pool.get('external.referential').browse(
     #         session.cr, session.uid, referential_id, session.context)
-    # ref = ReferenceRegistry.get_reference(extref.service, extref.version)
-    ref = REFERENCES.get_reference('magento', '1.7')
+    # ref = get_reference(extref.service, extref.version)
+    ref = get_reference('magento', '1.7')
 
     # FIXME: not sure that we want forcefully a new cr
     # when we run the task, could it be called from a `_get_dependencies`
     # as instance?
     # should we commit as well?
 
-    # TODO factory for synchronizer
-    importer = SingleImport(ref,
-                            session,
-                            model_name,
-                            referential_id)
+    importer_cls = ref.get_synchronizer('import_record', model_name)
+    importer = importer_cls(ref, session, model_name, referential_id)
     importer.work(record_id, mode, with_commit=True)
-
 
 TASKS.register('import_generic', _import_generic)
 
@@ -81,14 +77,10 @@ def _export_generic(session, model_name=None, record_id=None,
 
     # extref = session.pool.get('external.referential').browse(
     #         session.cr, session.uid, referential_id, session.context)
-    # ref = ReferenceRegistry.get_reference(extref.service, extref.version)
-    ref = REFERENCES.get_reference('magento', '1.7')
-
-    # factory for the synchronizers
-    exporter = SingleExport(ref,
-                            session,
-                            model_name,
-                            referential_id)
+    # ref = get_reference(extref.service, extref.version)
+    ref = get_reference('magento', '1.7')
+    exporter_cls = ref.get_synchronizer('export_record', model_name)
+    exporter = exporter_cls(ref, session, model_name, referential_id)
     # if the task export with commit, it should not be called
     # for subimports
     exporter.work(record_id, mode, fields=fields, with_commit=True)
