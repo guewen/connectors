@@ -1,4 +1,6 @@
 connectors
 ==========
 
-experimenting around openerp connectors
+Experiments around OpenERP connectors.
+
+Not meant to be maintained.
