@@ -19,27 +19,37 @@
 #
 ##############################################################################
 
+import logging
+from ..abstract.binders import ModelRecordBinder
+from .references import Magento
 
-class ModelRecordReferrer(object):
-    """ For one record of a model, capable to find an external or
-    internal id, or create the link between them
-    """
+_logger = logging.getLogger(__name__)
 
-    model_name = None  # define in sub-classes
 
-    @classmethod
-    def match(cls, model):
-        """ Identify the class to use
-        """
-        if cls.model_name is None:
-            raise NotImplementedError
-        return cls.model_name == model._name
+class MagentoBinder(ModelRecordBinder):
+    """ Generic Binder for Magento """
+
+
+class SaleOrderBinder(MagentoBinder):
+    model_name = 'sale.order'
+
+Magento.register_binder(SaleOrderBinder)
+
+
+class ResPartnerBinder(ModelRecordBinder):
+    model_name = 'res.partner'
 
     def to_openerp(self, external_id):
         """ Give the OpenERP ID for an external ID """
+        return 10
 
     def to_external(self, openerp_id):
         """ Give the external ID for an OpenERP ID """
+        return 15
 
     def bind(self, external_id, openerp_id):
         """ Create the link between an external ID and an OpenERP ID """
+        _logger.debug('bind openerp_id %s with external_id %s', openerp_id, external_id)
+
+
+Magento.register_binder(ResPartnerBinder)

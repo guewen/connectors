@@ -59,15 +59,13 @@ class SingleImport(AbstractSynchronization):
         self.model = self.session.pool.get(model_name)
         self.referential_id = referential_id  # sometimes it can be a shop...
         self._reference = None
-        self._record_referrer = None
+        self._binder = None
 
     @property
-    def record_referrer(self):
-        if self._record_referrer is None:
-            ref = self.reference.get_record_referrer(self.model)
-            self._record_referrer = ref()
-
-        return self._record_referrer
+    def binder(self):
+        if self._binder is None:
+            self._binder = self.reference.get_binder(self.model)()
+        return self._binder
 
     def work(self, external_id, mode, with_commit=False):
         """ Import the record
@@ -94,10 +92,10 @@ class SingleImport(AbstractSynchronization):
         if mode == 'create':
             openerp_id = self._create(transformed_data)
         else:
-            openerp_id = self.record_referrer.to_openerp(external_id)
+            openerp_id = self.binder.to_openerp(external_id)
             openerp_id = self._update(openerp_id, transformed_data)
 
-        self.record_referrer.bind(external_id, openerp_id)
+        self.binder.bind(external_id, openerp_id)
 
         if with_commit:
             self.session.commit()
@@ -175,15 +173,14 @@ class SingleExport(AbstractSynchronization):
         self.model = self.session.pool.get(model_name)
         self.referential_id = referential_id  # sometimes it can be a shop...
         self._reference = None
-        self._record_referrer = None
+        self._binder = None
 
     @property
-    def record_referrer(self):
-        if self._record_referrer is None:
-            ref = self.reference.get_record_referrer(self.model)
-            self._record_referrer = ref()
+    def binder(self):
+        if self._binder is None:
+            self._binder = self.reference.get_binder(self.model)()
 
-        return self._record_referrer
+        return self._binder
 
     def work(self, openerp_id, mode, fields=None, with_commit=False):
         """ Export the record
@@ -214,10 +211,10 @@ class SingleExport(AbstractSynchronization):
         if mode == 'create':
             external_id = self._create(transformed_data)
         else:
-            external_id = self.record_referrer.to_external(openerp_id)
+            external_id = self.binder.to_external(openerp_id)
             external_id = self._update(external_id, transformed_data)
 
-        self.record_referrer.bind(external_id, openerp_id)
+        self.binder.bind(external_id, openerp_id)
 
         if with_commit:
             self.session.commit()

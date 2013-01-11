@@ -5,6 +5,6 @@ import consumers
 from .exceptions import *
 from .processors import *
 from .tasks import *
-from .referrers import *
+from .binders import *
 from .synchronizers import *
 import session

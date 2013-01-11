@@ -50,9 +50,9 @@ class Reference(object):
     A reference can hold a version.
 
     The references contains all the classes they are able to use
-    (processors, referrers, synchronizers) and return the appropriate
+    (processors, binders, synchronizers) and return the appropriate
     class to use for a model.  When a reference is linked to a parent
-    and no particular processor, synchronizer or referrer is defined, it
+    and no particular processor, synchronizer or binder is defined, it
     will use the parent's one.
 
     Example::
@@ -68,7 +68,7 @@ class Reference(object):
         self.version = version
         self.parent = parent
         self._processors = set()
-        self._record_referrer = None
+        self._binder = None
         self._synchronizers = set()
 
     def match(self, service, version):
@@ -114,18 +114,18 @@ class Reference(object):
                                  'found for %s' % self)
         return processor
 
-    def get_record_referrer(self, model):
-        if self._record_referrer:
-            record_referrer = self._record_referrer
+    def get_binder(self, model):
+        if self._binder:
+            binder = self._binder
         else:
             if self.parent:
-                record_referrer = self.parent.get_record_referrer(model)
-            if record_referrer is None:
-                raise ValueError('No matching record_referrer found for %s' % self)
-        return record_referrer
+                binder = self.parent.get_binder(model)
+            if binder is None:
+                raise ValueError('No matching binder found for %s' % self)
+        return binder
 
-    def register_record_referrer(self, record_referrer):
-        self._record_referrer = record_referrer
+    def register_binder(self, binder):
+        self._binder = binder
 
     def register_synchronizer(self, synchronizer):
         self._synchronizers.add(synchronizer)
