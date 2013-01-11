@@ -64,7 +64,7 @@ class SingleImport(AbstractSynchronization):
     @property
     def binder(self):
         if self._binder is None:
-            self._binder = self.reference.get_binder(self.model)()
+            self._binder = self.reference.get_binder(self.model)(self.session)
         return self._binder
 
     def work(self, external_id, mode, with_commit=False):
@@ -92,10 +92,13 @@ class SingleImport(AbstractSynchronization):
         if mode == 'create':
             openerp_id = self._create(transformed_data)
         else:
-            openerp_id = self.binder.to_openerp(external_id)
+            openerp_id = self.binder.to_openerp(self.referential_id,
+                                                external_id)
             openerp_id = self._update(openerp_id, transformed_data)
 
-        self.binder.bind(external_id, openerp_id)
+        self.binder.bind(self.referential_id,
+                         external_id,
+                         openerp_id)
 
         if with_commit:
             self.session.commit()
@@ -178,7 +181,7 @@ class SingleExport(AbstractSynchronization):
     @property
     def binder(self):
         if self._binder is None:
-            self._binder = self.reference.get_binder(self.model)()
+            self._binder = self.reference.get_binder(self.model)(self.session)
 
         return self._binder
 
@@ -211,10 +214,12 @@ class SingleExport(AbstractSynchronization):
         if mode == 'create':
             external_id = self._create(transformed_data)
         else:
-            external_id = self.binder.to_external(openerp_id)
+            external_id = self.binder.to_external(self.referential_id, openerp_id)
             external_id = self._update(external_id, transformed_data)
 
-        self.binder.bind(external_id, openerp_id)
+        self.binder.bind(self.referential_id,
+                         external_id,
+                         openerp_id)
 
         if with_commit:
             self.session.commit()

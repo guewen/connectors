@@ -35,11 +35,15 @@ class ModelRecordBinder(object):
             raise NotImplementedError
         return cls.model_name == model._name
 
-    def to_openerp(self, external_id):
+    def __init__(self, session):
+        self.session = session
+        self.model = self.session.pool.get(self.model_name)
+
+    def to_openerp(self, referential_id, external_id):
         """ Give the OpenERP ID for an external ID """
 
-    def to_external(self, openerp_id):
+    def to_external(self, referential_id, openerp_id):
         """ Give the external ID for an OpenERP ID """
 
-    def bind(self, external_id, openerp_id):
+    def bind(self, referential_id, external_id, openerp_id):
         """ Create the link between an external ID and an OpenERP ID """

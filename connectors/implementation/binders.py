@@ -39,15 +39,15 @@ Magento.register_binder(SaleOrderBinder)
 class ResPartnerBinder(ModelRecordBinder):
     model_name = 'res.partner'
 
-    def to_openerp(self, external_id):
+    def to_openerp(self, referential_id, external_id):
         """ Give the OpenERP ID for an external ID """
         return 10
 
-    def to_external(self, openerp_id):
+    def to_external(self, referential_id, openerp_id):
         """ Give the external ID for an OpenERP ID """
         return 15
 
-    def bind(self, external_id, openerp_id):
+    def bind(self, referential_id, external_id, openerp_id):
         """ Create the link between an external ID and an OpenERP ID """
         _logger.debug('bind openerp_id %s with external_id %s', openerp_id, external_id)
 
