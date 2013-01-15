@@ -67,7 +67,7 @@ class ResPartnerBinder(ModelRecordBinder):
         :param openerp_id: OpenERP ID to bind
         """
         _logger.debug('bind openerp_id %s with external_id %s',
-                      openerp_id, external_id)
+                      openerp_id, external_identifier)
 
 
 Magento.register_binder(ResPartnerBinder)
