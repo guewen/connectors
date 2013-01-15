@@ -19,6 +19,19 @@
 #
 ##############################################################################
 
+class ExternalIdentifier(dict):
+    """ Most of the time, on an external system,
+    a record is identified by a unique ID. However
+    occasionaly, it is identified by an ID and a second
+    key, or even no ID at all but some keys.
+
+    Instances of this class encapsulate the identifier(s)
+    for a external record.
+
+    It must be marshallable to JSON because an `ExternalIdentifier`
+    can be stored in a task.
+    """
+
 
 class ModelRecordBinder(object):
     """ For one record of a model, capable to find an external or
@@ -39,11 +52,28 @@ class ModelRecordBinder(object):
         self.session = session
         self.model = self.session.pool.get(self.model_name)
 
-    def to_openerp(self, referential_id, external_id):
-        """ Give the OpenERP ID for an external ID """
+    def to_openerp(self, referential_id, external_identifier):
+        """ Give the OpenERP ID for an external ID
+
+        :param referential_id: id of the external.referential
+        :param external_identifier: `ExternalIdentifier` for which
+            we want the OpenERP ID
+        :return: OpenERP ID of the record
+        """
 
     def to_external(self, referential_id, openerp_id):
-        """ Give the external ID for an OpenERP ID """
+        """ Give the external ID for an OpenERP ID
 
-    def bind(self, referential_id, external_id, openerp_id):
-        """ Create the link between an external ID and an OpenERP ID """
+        :param referential_id: id of the external.referential
+        :param openerp_id: OpenERP ID for which we want the
+            external id
+        :return: `ExternalIdentifier` of the record
+        """
+
+    def bind(self, referential_id, external_identifier, openerp_id):
+        """ Create the link between an external ID and an OpenERP ID
+
+        :param referential_id: id of the external.referential
+        :param external_identifier: `ExternalIdentifier` to bind
+        :param openerp_id: OpenERP ID to bind
+        """
