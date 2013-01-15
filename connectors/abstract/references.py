@@ -97,7 +97,9 @@ class Reference(object):
         if synchronizer is None and self.parent:
             synchronizer = self.parent.get_synchronizer(synchro_type, model)
             if synchronizer is None:
-                raise ValueError('No matching synchronizer found')
+                raise ValueError('No matching synchronizer found for %s '
+                                 'with synchronization_type: %s, model: %s' %
+                                 (self, synchro_type, model))
         return synchronizer
 
     def get_processor(self, model):
@@ -110,8 +112,8 @@ class Reference(object):
         if processor is None and self.parent:
             processor = self.parent.get_processor(model)
             if processor is None:
-                raise ValueError('No matching processor '
-                                 'found for %s' % self)
+                raise ValueError('No matching processor found for %s '
+                                 'with model: %s' % (self, model))
         return processor
 
     def get_binder(self, model):
@@ -121,7 +123,8 @@ class Reference(object):
             if self.parent:
                 binder = self.parent.get_binder(model)
             if binder is None:
-                raise ValueError('No matching binder found for %s' % self)
+                raise ValueError('No matching binder found for %s '
+                                 'with model: %s' % (self, model))
         return binder
 
     def register_binder(self, binder):
