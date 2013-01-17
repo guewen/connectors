@@ -33,6 +33,7 @@ class EventHook(object):
     in the implementations of the connectors.
 
     Here's how to use the EventHook class::
+    # TODO update the doc
 
         my_event = EventHook()
         def on_my_event(a, b):
@@ -42,19 +43,30 @@ class EventHook(object):
     """
 
     def __init__(self):
-        self._handlers = set()
+        self._handlers = {None: set()}
 
-    def subscribe(self, handler, replacing=None):
+    def subscribe(self, handler, model_names=None, replacing=None):
         if replacing is not None:
-            self.unsubscribe(replacing)
-        self._handlers.add(handler)
+            self.unsubscribe(replacing, model_names=model_names)
+        if not isinstance(model_names, (list, tuple)):
+            model_names = [model_names]
+        for name in model_names:
+            self._handlers.setdefault(name, set()).add(handler)
 
-    def unsubscribe(self, handler):
-        self._handlers.remove(handler)
+    def unsubscribe(self, handler, model_names=None):
+        if not isinstance(model_names, (list, tuple)):
+            model_names = [model_names]
+        for name in model_names:
+            if name in self._handlers:
+                self._handlers[name].remove(handler)
 
-    def fire(self, *args, **kwargs):
-        for handler in self._handlers:
-            handler(*args, **kwargs)
+    def fire(self, model_name, *args, **kwargs):
+        for name in (None, model_name):
+            for handler in self._handlers.get(name, ()):
+                handler(*args, **kwargs)
+
+    def __call__(self, func):
+        # TODO : implement decorator
 
 
 on_record_write = EventHook()
