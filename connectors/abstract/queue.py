@@ -113,7 +113,7 @@ class FauxQueue(object):
                  ('state', '=', 'pending')],
                 limit=max_count,
                 context=context)
-        session = Session(cr, uid, self.pool, context=context)
+        session = Session(cr, uid, self.pool, None, context=context)
         for task_id in task_ids:
             # lock the row to avoid to be processed by another job
             sql = "SELECT id FROM %s " % self._table

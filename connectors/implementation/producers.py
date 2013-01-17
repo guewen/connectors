@@ -36,5 +36,5 @@ class stock_picking(orm.Model):
         if vals.get('carrier_tracking_ref'):
             for res_id in ids:
                 on_stock_picking_tracking_number.fire(
-                    Session(cr, uid, self.pool, context=context), res_id)
+                    Session(cr, uid, self.pool, self._name, context=context), res_id)
         return res

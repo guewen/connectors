@@ -26,10 +26,12 @@ from contextlib import contextmanager
 
 class Session(object):
 
-    def __init__(self, cr, uid, pool, context=None):
+    def __init__(self, cr, uid, pool, model_name, context=None):
         self.cr = cr
         self.uid = uid
         self.pool = pool
+        self.model_name = model_name
+        self.model = self.pool.get(model_name)
         if context is None:
             context = {}
         self.context = context
@@ -44,6 +46,7 @@ class Session(object):
         subsession = Session(db.cursor(),
                              self.uid,
                              new_pool,
+                             self.model_name,
                              context=self.context)
         try:
             yield subsession

@@ -66,22 +66,23 @@ class model_producers(object_proxy):
                 cr,
                 uid,
                 pool,
+                model,
                 context=context)
         if method == 'create':
-            on_record_create.fire(session(), model, res)
+            on_record_create.fire(model, session(), res)
         elif method == 'write':
             ids = args[0]
             vals = args[1]
             if isinstance(ids, (long, int)):
                 ids = [ids]
             for res_id in ids:
-                on_record_write.fire(session(), model, res_id, vals.keys())
+                on_record_write.fire(model, session(), res_id, vals.keys())
         elif method == 'unlink':
             ids = args[0]
             if isinstance(ids, (long, int)):
                 ids = [ids]
             for res_id in ids:
-                on_record_unlink.fire(session, model, res_id)
+                on_record_unlink.fire(model, session(), res_id)
         # TODO: implements action, workflow action?
 
         return res
@@ -95,8 +96,8 @@ class model_producers(object_proxy):
             Session(
                 cr,
                 uid,
-                pooler.get_pool(cr.dbname)),
-            obj,
+                pooler.get_pool(cr.dbname),
+                obj),
             res_id,
             signal)
         return res

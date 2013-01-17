@@ -67,6 +67,7 @@ class EventHook(object):
 
     def __call__(self, func):
         # TODO : implement decorator
+        return func
 
 
 on_record_write = EventHook()
