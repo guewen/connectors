@@ -26,6 +26,7 @@ __all__ = [
     'on_workflow_signal',
 ]
 
+# rename to Event
 class EventHook(object):
     """
     Simple event class used to provide hooks for events
@@ -41,10 +42,12 @@ class EventHook(object):
     """
 
     def __init__(self):
-        self._handlers = []
+        self._handlers = set()
 
-    def subscribe(self, handler):
-        self._handlers.append(handler)
+    def subscribe(self, handler, replacing=None):
+        if replacing is not None:
+            self.unsubscribe(replacing)
+        self._handlers.add(handler)
 
     def unsubscribe(self, handler):
         self._handlers.remove(handler)
