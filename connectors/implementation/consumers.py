@@ -34,6 +34,7 @@ from .events import (
 
 _MODEL_NAMES = ('product.product', 'res.partner')
 
+
 def record_created(session, record_id):
     """ here belongs the task(s) creation """
     # TODO: open modification of the queue to use

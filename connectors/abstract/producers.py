@@ -70,6 +70,7 @@ class model_producers(object_proxy):
                 context=context)
         if method == 'create':
             on_record_create.fire(model, session(), res)
+
         elif method == 'write':
             ids = args[0]
             vals = args[1]
@@ -77,6 +78,7 @@ class model_producers(object_proxy):
                 ids = [ids]
             for res_id in ids:
                 on_record_write.fire(model, session(), res_id, vals.keys())
+
         elif method == 'unlink':
             ids = args[0]
             if isinstance(ids, (long, int)):

@@ -19,7 +19,7 @@
 #
 ##############################################################################
 
-from ..abstract.events import EventHook
+from ..abstract.events import Event
 
 __all__ = [
     'on_stock_picking_tracking_number',
@@ -29,7 +29,7 @@ __all__ = [
 
 # implemented at base_sale_multichannels level
 
-on_sale_order_status_change = EventHook()
+on_sale_order_status_change = Event()
 """
 `on_sale_order_status_change` is fired when the status of a sale order
 has changed.
@@ -41,7 +41,7 @@ Listeners should take the following arguments:
 
 """
 
-on_stock_picking_tracking_number = EventHook()
+on_stock_picking_tracking_number = Event()
 """
 `on_stock_picking_tracking_number` is fired when a tracking number has been entered
 on a packing.
