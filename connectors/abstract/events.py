@@ -26,20 +26,46 @@ __all__ = [
     'on_workflow_signal',
 ]
 
-# rename to Event
-class EventHook(object):
-    """
-    Simple event class used to provide hooks for events
-    in the implementations of the connectors.
 
-    Here's how to use the EventHook class::
-    # TODO update the doc
+class Event(object):
+    """ An event handles actions called when the event is fired.
 
-        my_event = EventHook()
-        def on_my_event(a, b):
+    The events are able to filter the actions by model name.
+
+    The usage of an event is to instantiate an `Event` object::
+
+        on_my_event = Event()
+
+    Then to subscribe one or more actions, an action is a function::
+
+        def do_something(a, b):
             print "Event was fired with arguments: %s, %s" % (a, b)
-        my_event.subscribe(on_my_event)
-        my_event.fire("foo", "bar")
+
+        # active on all models
+        on_my_event.subscribe(do_something)
+
+        def do_something_product(a, b):
+            print ("Event was fired on a product "
+                  "with arguments: %s, %s" % (a, b))
+
+        # active only on product.product
+        on_my_event.subscribe(do_something_product,
+                              model_names='product.product')
+
+    We can also replace an event::
+
+        def do_something_product2(a, b):
+            print "Action 2"
+            print ("Event was fired on a product "
+                  "with arguments: %s, %s" % (a, b))
+
+        on_my_event.subscribe(do_something_product2,
+                              replacing=do_something_product)
+
+    Finally, we fire the event::
+
+        on_my_event.fire('value_a', 'value_b')
+
     """
 
     def __init__(self):
@@ -70,51 +96,47 @@ class EventHook(object):
         return func
 
 
-on_record_write = EventHook()
+on_record_write = Event()
 """
 `on_record_write` is fired when one record has been updated.
 
 Listeners should take the following arguments:
 
  * session: `Session` object
- * model_name: model
  * record_id: id of the record
  * fields: fields which have been written
 
 """
 
-on_record_create = EventHook()
+on_record_create = Event()
 """
 `on_record_create` is fired when one record has been created.
 
 Listeners should take the following arguments:
 
  * session: `Session` object
- * model_name: model
  * record_id: id of the created record
 
 """
 
-on_record_unlink = EventHook()
+on_record_unlink = Event()
 """
 `on_record_unlink` is fired when one record has been deleted.
 
 Listeners should take the following arguments:
 
  * session: `Session` object
- * model_name: model
  * record_id: id of the record
 
 """
 
-on_workflow_signal = EventHook()
+on_workflow_signal = Event()
 """
 `on_workflow_signal` is fired whenever a workflow signal is triggered.
 
 Listeners should take the following arguments:
 
  * session: `Session` object
- * model_name: model
  * record_id: id of the record
  * signal: name of the signal
 
