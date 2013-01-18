@@ -8,3 +8,8 @@ from .tasks import *
 from .binders import *
 from .synchronizers import *
 import session
+
+
+
+# TODO
+# implement adapters

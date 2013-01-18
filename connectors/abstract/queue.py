@@ -29,7 +29,14 @@ from .session import Session
 
 _logger = logging.getLogger(__name__)
 
+# TODO implement a memory queue
+# on start: take all the pending tasks
+# on write of a task: create a task in the queue
+# on end of the task: remove it
+# warning with multiprocess: only 1 process should
+# take the pending tasks on start
 
+# actually this is Tasks
 class FauxQueue(object):
     """ Implementation of a queue on top of the OpenERP crons.
 
