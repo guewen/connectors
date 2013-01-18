@@ -19,6 +19,14 @@
 #
 ##############################################################################
 
+from uuid import uuid4
+from datetime import datetime
+
+PENDING = 'pending'
+QUEUED = 'queued'
+DONE = 'done'
+FAILED = 'failed'
+
 
 class TasksRegistry(object):
 
@@ -34,9 +42,79 @@ class TasksRegistry(object):
         self.tasks[task_name] = function
 
 
-# actually this is Tasks
-class FauxQueue(object):
-    """ Implementation of a queue on top of the OpenERP crons.
+class AbstractJob(object):
+    """ Job metadata
+    """
+
+    storage = None  # class which handle the storage
+
+    @classmethod
+    def create(cls, session, func, args, kwargs, job_id=None):
+        """ Create a job """
+
+    @classmethod
+    def exists(cls, session, job_id):
+        """Returns if a job still exists in the storage."""
+
+    @classmethod
+    def fetch(cls, session, job_id):
+        """Fetch and read a job from the storage and instanciate it
+        """
+        job = cls(session, id=job_id)
+        job.refresh()
+        return job
+
+    def __init__(self, session, id=None):
+        self.session = session
+
+        self._id = id
+
+        self.created_at = datetime.now()
+        self.ended_at = None
+        self._only_after = None
+
+        self._result = None
+        self._status = None
+
+        self.meta = {}
+
+    def save(self):
+        """ Store the Job """
+
+    def refresh(self):
+        """ read again the metadata from the storage """
+
+    def cancel(self):
+        """ Cancel a job """
+
+    def perform(self):
+        """ Execute a job """
+
+    @property
+    def id(self):
+        """Job ID for this instance, this is a UUID
+        """
+        if self._id is None:
+            self._id = unicode(uuid4())
+        return self._id
+
+    def status(self):
+        """Returns the status of the job."""
+
+    def set_status(self, status, result=None, traceback=None):
+        """Change the status of the job."""
+
+    def __repr__(self):
+        return '<Job %s>' % self.id
+
+
+class OpenERPJob(AbstractJob):
+    """Implementation of a job on an OpenERP storage"""
+
+
+# TODO handle only the storage of the jobs
+class AbstractJobStorage(object):
+    """ Task status and result.
 
     It is called faux queue because it is not a real queue which
     runs all the time (by many processes eventually).
@@ -48,8 +126,8 @@ class FauxQueue(object):
 
     It can be replaced by a real queue.
 
-    This is an `AbstractModel` and has to be implemented in the
-    connectors, for example::
+    The task model need to be implemented in the connectors, for
+    example::
 
         TASKS = TasksRegistry()
 
@@ -93,7 +171,10 @@ class FauxQueue(object):
                                    ('done', 'Done')],
                                   string='State',
                                   readonly=True),
-        'traceback': fields.text('Traceback', readonly=True)
+        'traceback': fields.text('Traceback', readonly=True),
+        'result': fields.text('Result', readonly=True),
+        'date_done': fields.datetime('Date Done', readonly=True),
+        'later_date': fields.datetime('Execute after'),
         }
 
     _defaults = {
