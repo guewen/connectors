@@ -20,16 +20,16 @@
 ##############################################################################
 
 from openerp.osv import orm
-from ..abstract.queue import FauxQueue
+# from ..abstract.queue import FauxQueue
 from ..abstract.tasks import TasksRegistry
 
 
 TASKS = TasksRegistry()
 
 
-class faux_queue_magento(FauxQueue, orm.Model):
-    _name = 'faux.queue.magento'
-    task_registry = TASKS
+# class faux_queue_magento(FauxQueue, orm.Model):
+#     _name = 'faux.queue.magento'
+#     task_registry = TASKS
 
-faux_queue_magento.register_queue('default', 'Default queue')
-faux_queue_magento.register_queue('orders', 'Sales Orders')
+# faux_queue_magento.register_queue('default', 'Default queue')
+# faux_queue_magento.register_queue('orders', 'Sales Orders')

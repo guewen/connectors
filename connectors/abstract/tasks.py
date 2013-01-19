@@ -19,13 +19,19 @@
 #
 ##############################################################################
 
+import logging
 from uuid import uuid4
 from datetime import datetime
+
+from openerp.osv import orm, fields
 
 PENDING = 'pending'
 QUEUED = 'queued'
 DONE = 'done'
+STARTED = 'started'
 FAILED = 'failed'
+
+_logger = logging.getLogger(__name__)
 
 
 class TasksRegistry(object):
@@ -91,6 +97,10 @@ class AbstractJob(object):
         """ Execute a job """
 
     @property
+    def state(self):
+        return self._status
+
+    @property
     def id(self):
         """Job ID for this instance, this is a UUID
         """
@@ -110,6 +120,39 @@ class AbstractJob(object):
 
 class OpenERPJob(AbstractJob):
     """Implementation of a job on an OpenERP storage"""
+
+    @classmethod
+    def create(cls, session, func, args, kwargs, job_id=None):
+        """ Create a job """
+        return cls(session)
+
+    @classmethod
+    def exists(cls, session, job_id):
+        """Returns if a job still exists in the storage."""
+        stor = session.pool.get('job.storage')
+        jobs = stor.search(session.cr,
+                           session.uid,
+                           [('uuid', '=', job_id)],
+                           context=session.context,
+                           limit=1)
+        if jobs:
+            return True
+        return False
+
+    def save(self):
+        """ Store the Job """
+        stor = self.session.pool.get('job.storage')
+        vals = dict(uuid=self.id,
+                    state=self.state,
+                    pickled=None,  # TODO
+                    traceback=None,
+                    result=None,
+                    date_done=None,
+                    later_date=None)
+        stor.create(self.session.cr,
+                    self.session.uid,
+                    vals,
+                    self.session.context)
 
 
 # TODO handle only the storage of the jobs

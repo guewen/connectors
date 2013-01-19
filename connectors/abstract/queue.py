@@ -21,8 +21,10 @@
 import logging
 import random
 import os
-from multiprocessing import Queue
+import errno
+from Queue import Queue, Empty
 from functools import total_ordering  # FIXME only since 2.7
+from operator import itemgetter
 
 from openerp.osv import orm, fields
 from openerp import pooler
@@ -43,98 +45,130 @@ class AbstractQueue(object):
 
     job_cls = None
 
-    def __init__(self, session, key, priority=999):
+    def __init__(self, key):
         """ """
 
-    def enqueue(self, func, *args, **kwargs):
+    def enqueue(self, session, func, *args, **kwargs):
         """Put a job in the queue"""
 
-    def dequeue(self):
+    def dequeue(self, session):
         """ Take the first job from the queue and return it """
 
-    def __eq__(self, other):
-        """ """
-
-    def __lt__(self, other):
-        """ """
-
-    def __hash__(self):
-        """ """
-
     @classmethod
-    def dequeue_by_priority(cls, queues):
+    def dequeue_first(cls, session, queues):
         """ """
 
-@total_ordering
-class MultiprocessQueue(object):
+
+class JobsQueue(AbstractQueue):
     """ Implementation """
 
     job_cls = OpenERPJob
 
-    def __init__(self, session, key, priority=999):
-        self.session = session
+    def __init__(self, key):
         self._key = key
         self._queue = Queue()
-        self.priority = priority
 
-    def enqueue(self, func, *args, **kwargs):
+    def enqueue(self, session, func, *args, **kwargs):
         """Put a job in the queue"""
-        job = self.job_cls.create(self.session, func, args, kwargs)
+        job = self.job_cls.create(session, func, args, kwargs)
         self._queue.put_nowait(job)  # XXX blocking?
+        _logger.debug('Job %s enqueued', job)
 
-    def dequeue(self):
+    def dequeue(self, session):
         """ Take the first job from the queue and return it """
-        job_id = self._queue.get_nowait()
+        try:
+            job_id = self._queue.get_nowait()
+        except Empty as err:
+            job_id = None
         if job_id is None:
             return None
         try:
-            job = self.job_cls.fetch(self.session, job_id)
+            job = self.job_cls.fetch(session, job_id)
         except:
             # TODO handle:
             # - no job (recall dequeue to continue to the next)
             # - job fetching error
             raise
+        _logger.debug('Fetched job %s', job)
         return job
 
-    def __repr__(self):
-        return 'MultiprocessQueue(%r)' % self._key
-
-    def __str__(self):
-        return '<MultiprocessQueue \'%s\'>' % self._key
-
-    def __eq__(self, other):
-        if not isinstance(other, Queue):
-            raise TypeError('Cannot compare queues to other objects.')
-        return self._key == other._key
-
-    def __lt__(self, other):
-        if not isinstance(other, Queue):
-            raise TypeError('Cannot compare queues to other objects.')
-        return self.priority < other.priority
-
-    def __hash__(self):
-        return hash(self._key)
-
     @classmethod
-    def dequeue_by_priority(cls, queues):
-        queues = sorted(queues)
-        for queue in queues:
-            job = queue.dequeue()
+    def dequeue_first(cls, session, queue_set):
+        """
+        :param session: `Session`
+        :param queue_set: `QueueSet`
+        """
+        for queue in queue_set:
+            job = queue.dequeue(session)
             if job is not None:
+                _logger.debug('Dequeued %s from queue %s', job, queue)
                 return job, queue
         return None
+
+    def __repr__(self):
+        return 'JobsQueue(%r)' % self._key
+
+    def __str__(self):
+        return '<JobsQueue \'%s\'>' % self._key
+
+
+class QueueSet(object):
+
+    def __init__(self, *queues):
+        self._queues = set(queues)
+
+    def __iter__(self):
+        for queue in self._queues:
+            yield queue
+
+
+class PriorityQueueSet(QueueSet):
+
+    default_priority = 10
+
+    def __init__(self, *queues):
+        """ Allows to assign a priority to each queue.
+        If a priority is not defined, it uses a default priority with the value
+        of `default_priority`.
+
+        :param queues: each arg is a tuple with a queue and a priority
+        """
+        queues_set = []
+        for queue in queues:
+            if isinstance(queue, tuple):
+                queues_set.append(queue)
+            else:
+                queues_set.append((queue, self.default_priority))
+        self._queues = sorted(queues_set, key=itemgetter(1))
+
+    def __iter__(self):
+        """ Introduces some randomization to allow queues with a lower priority
+        to be chosen sometimes before a queue with a higher priority.
+        The more the difference is great, the less a lower priority will have a
+        chance to be chosen.
+        """
+        queues = list(self._queues)
+
+        ordered_queues = []
+        for _ in xrange(len(queues)):
+            higher_priority = max(queue[1] for queue in queues)
+            rand = random.randint(0, higher_priority)
+            queue = next(que for que in queues if que[1] >= rand)
+            ordered_queues.append(queue[0])
+            queues.remove(queue)
+
+        for queue in ordered_queues:
+            yield queue
 
 
 class Worker(object):
 
-    queue_cls = Queue
+    queue_cls = JobsQueue
 
-    def __init__(self, session, queues):
+    def __init__(self, session, queue_set):
         self.session = session
         self.log = _logger
-        if not isinstance(queues, (list, tuple)):
-            queues = [queues]
-        self.queues = queues
+        self.queue_set = queue_set
 
     def fork_and_run_job(self, job):
         """ Fork the process and give it a job """
@@ -143,8 +177,10 @@ class Worker(object):
             self._do_forked(job)
         else:  # parent
             self.log.debug('Forked with pid: %d', pid)
-            while True:
-                os.waitpid(pid, 0)
+            # XXX [Errno 10] No child processes
+            # have to set signal handlers
+            # while True:
+            #     os.waitpid(pid, 0)
 
     def _do_forked(self, job):
         """ Child fork stuff """
@@ -175,11 +211,12 @@ class Worker(object):
         self.log.info('Start %s', self)
         while True:
             try:
-                result = self.queue_cls.dequeue_by_priority(
-                        self.session, self.queues)
+                result = self.queue_cls.dequeue_first(
+                        self.session, self.queue_set)
                 if result is None:
                     break
-            except:
+            except Exception as err:
+                self.log.exception(err)
                 # which exceptions and how?
                 continue
 
@@ -188,3 +225,44 @@ class Worker(object):
             self.fork_and_run_job(job)
 
         self.log.info('Stop %s', self)
+
+
+def test1(a, b):
+    _logger.debug('test1 %s %s', a, b)
+
+def test2(a, b=None):
+    _logger.debug('test2 %s %s', a, b)
+
+from openerp.osv import orm
+
+class res_users(orm.Model):
+    _inherit = 'res.users'
+
+    def test(self, cr, uid, ids, context=None):
+        session = Session(cr,
+                          uid,
+                          self.pool,
+                          self._name,
+                          context=context)
+        queue1.enqueue(session, test1, ['a', 1])
+        queue1.enqueue(session, test1, ['a', 1])
+        queue2.enqueue(session, test1, ['b', 1])
+        queue2.enqueue(session, test2, ['b'], {'b': 2})
+        queue2.enqueue(session, test2, ['b'], {'b': 2})
+        Worker(session, PriorityQueueSet((queue1, 10), (queue2, 30))).work()
+        return True
+
+
+queue1 = JobsQueue('queue1')
+queue2 = JobsQueue('queue2')
+
+
+def on_start_queues():
+    """ Assign all pending jobs to queues
+
+    Must be called when OpenERP starts.
+
+    Warning: if OpenERP has many processes with Gunicorn only 1 process must
+    take the jobs.
+    """
+
