@@ -23,7 +23,7 @@ import random
 import os
 import errno
 from Queue import Queue, Empty
-from functools import total_ordering  # FIXME only since 2.7
+from functools import wraps
 from operator import itemgetter
 
 from openerp.osv import orm, fields
@@ -39,6 +39,22 @@ _logger = logging.getLogger(__name__)
 # on end of the task: remove it
 # warning with multiprocess: only 1 process should
 # take the pending tasks
+
+# decorators
+class task(object):
+
+    def __init__(self, queue):
+        assert isinstance(queue, AbstractQueue), "%s: invalid queue" % queue
+        self.queue = queue
+
+    def __call__(self, func):
+        @wraps(func)
+        def delay(session, *args, **kwargs):
+            self.queue.enqueue_args(session, func, args, kwargs)
+        func.delay = delay
+        return func
+
+# TODO periodic_task?
 
 
 class AbstractQueue(object):
@@ -69,10 +85,19 @@ class JobsQueue(AbstractQueue):
         self._queue = Queue()
 
     def enqueue(self, session, func, *args, **kwargs):
-        """Put a job in the queue"""
-        job = self.job_cls.create(session, func, args, kwargs)
+        """Create a Job and enqueue it in the queue"""
+        only_after = kwargs.pop('only_after', None)
+
+        return self.enqueue_args(session, func, args, kwargs,
+                                 only_after=only_after)
+
+    def enqueue_job(self, job):
         self._queue.put_nowait(job)  # XXX blocking?
         _logger.debug('Job %s enqueued', job)
+
+    def enqueue_args(self, session, func, args, kwargs, only_after=None):
+        job = self.job_cls.create(session, func, args, kwargs)
+        self.enqueue_job(job)
 
     def dequeue(self, session):
         """ Take the first job from the queue and return it """
@@ -227,11 +252,6 @@ class Worker(object):
         self.log.info('Stop %s', self)
 
 
-def test1(a, b):
-    _logger.debug('test1 %s %s', a, b)
-
-def test2(a, b=None):
-    _logger.debug('test2 %s %s', a, b)
 
 from openerp.osv import orm
 
@@ -249,12 +269,28 @@ class res_users(orm.Model):
         queue2.enqueue(session, test1, ['b', 1])
         queue2.enqueue(session, test2, ['b'], {'b': 2})
         queue2.enqueue(session, test2, ['b'], {'b': 2})
+
+        test1.delay('a', 1)
+        test1.delay('a', 1)
+        test2.delay('a', 2)
+        test2.delay('b', 1)
+        test2('b', 10)
         Worker(session, PriorityQueueSet((queue1, 10), (queue2, 30))).work()
         return True
 
 
 queue1 = JobsQueue('queue1')
 queue2 = JobsQueue('queue2')
+
+
+@task(queue1)
+def test1(a, b):
+    _logger.debug('test1 %s %s', a, b)
+
+
+@task(queue2)
+def test2(a, b=None):
+    _logger.debug('test2 %s %s', a, b)
 
 
 def on_start_queues():

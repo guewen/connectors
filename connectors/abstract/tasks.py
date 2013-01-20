@@ -25,6 +25,7 @@ from datetime import datetime
 
 from openerp.osv import orm, fields
 
+
 PENDING = 'pending'
 QUEUED = 'queued'
 DONE = 'done'
@@ -32,6 +33,7 @@ STARTED = 'started'
 FAILED = 'failed'
 
 _logger = logging.getLogger(__name__)
+
 
 
 class TasksRegistry(object):
