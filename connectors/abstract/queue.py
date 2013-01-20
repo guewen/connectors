@@ -24,7 +24,7 @@ import os
 import errno
 from Queue import Queue, Empty
 from functools import wraps
-from operator import itemgetter
+from copy import copy
 
 from openerp.osv import orm, fields
 from openerp import pooler
@@ -140,10 +140,10 @@ class JobsQueue(AbstractQueue):
 class QueueSet(object):
 
     def __init__(self, *queues):
-        self._queues = set(queues)
+        self.queues = set(queues)
 
     def __iter__(self):
-        for queue in self._queues:
+        for queue in self.queues:
             yield queue
 
 
@@ -151,20 +151,44 @@ class PriorityQueueSet(QueueSet):
 
     default_priority = 10
 
-    def __init__(self, *queues):
+    def __init__(self, *queue_tuples):
         """ Allows to assign a priority to each queue.
         If a priority is not defined, it uses a default priority with the value
         of `default_priority`.
 
+        A priority is a chance to be selected more often, not an absolute
+        order between queues.
+
         :param queues: each arg is a tuple with a queue and a priority
         """
-        queues_set = []
-        for queue in queues:
+        queues = set()
+        priorities = {}
+        for queue in queue_tuples:
             if isinstance(queue, tuple):
-                queues_set.append(queue)
+                priorities[queue[0]] = queue[1]
+                queues.add(queue[0])
             else:
-                queues_set.append((queue, self.default_priority))
-        self._queues = sorted(queues_set, key=itemgetter(1))
+                priorities[queue] = self.default_priority
+                queues.add(queue)
+        self.queues = queues
+        self.priorities = priorities
+
+    def ratios(self, queues):
+        """ Creates a range of int per queue based on their priority
+        """
+        ranges = {}
+        queues_prior = dict((queue, prior) for queue, prior
+                            in self.priorities.iteritems()
+                            if queue in queues)
+
+        start = 0
+        maximum = 0
+        for queue, priority in queues_prior.iteritems():
+            ranges[queue] = xrange(start, start + priority)
+            maximum = start + priority
+            start += priority
+        maximum = start - 1
+        return ranges, maximum
 
     def __iter__(self):
         """ Introduces some randomization to allow queues with a lower priority
@@ -172,14 +196,15 @@ class PriorityQueueSet(QueueSet):
         The more the difference is great, the less a lower priority will have a
         chance to be chosen.
         """
-        queues = list(self._queues)
+        queues = copy(self.queues)
 
         ordered_queues = []
         for _ in xrange(len(queues)):
-            higher_priority = max(queue[1] for queue in queues)
-            rand = random.randint(0, higher_priority)
-            queue = next(que for que in queues if que[1] >= rand)
-            ordered_queues.append(queue[0])
+            ratios, maximum = self.ratios(queues)
+            rand = random.randint(0, maximum)
+            queue = next(que for que, qrange in ratios.iteritems()
+                         if rand in qrange)
+            ordered_queues.append(queue)
             queues.remove(queue)
 
         for queue in ordered_queues:
