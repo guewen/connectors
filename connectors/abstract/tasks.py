@@ -146,11 +146,15 @@ class OpenERPJob(AbstractJob):
         stor = self.session.pool.get('job.storage')
         vals = dict(uuid=self.id,
                     state=self.state,
-                    pickled=None,  # TODO
-                    traceback=None,
+                    queue=None,
+                    func=None,  # TODO: assign all fields
+                    name=None,
+                    exc_info=None,
                     result=None,
+                    date_start=None,
+                    date_enqueue=None,
                     date_done=None,
-                    later_date=None)
+                    only_after=None)
         stor.create(self.session.cr,
                     self.session.uid,
                     vals,
@@ -158,82 +162,38 @@ class OpenERPJob(AbstractJob):
 
 
 # TODO handle only the storage of the jobs
-class AbstractJobStorage(object):
-    """ Task status and result.
-
-    It is called faux queue because it is not a real queue which
-    runs all the time (by many processes eventually).
-    Instead, it is launched by OpenERP crons and process as many
-    tasks as it can.
-
-    This is an acceptable implementation for a PoC which requires
-    minimal dependencies (no workers, no message queue database).
-
-    It can be replaced by a real queue.
-
-    The task model need to be implemented in the connectors, for
-    example::
-
-        TASKS = TasksRegistry()
-
-
-        class faux_queue_magento(FauxQueue, orm.Model):
-            _name = 'faux.queue.magento'
-
-            task_registry = TASKS
-
-        faux_queue_magento.register_queue('default', 'Default queue')
-        faux_queue_magento.register_queue('orders', 'Sales Orders')
-
-    The registry serving the tasks of the queue
-    must be defined in ``task_registry``
-
-    With the code above, you will have 2 queues and you will
-    need one cron per queue. It can be used as a prioritization.
-
+class JobsStorage(orm.Model):
+    """ Job status and result.
     """
-
-    task_registry = None  # to be defined in implementations
-
-    @classmethod
-    def register_queue(cls, name, string):
-        if not hasattr(cls, '_queues'):
-            cls._queues = []
-        cls._queues.append((name, string))
-
-    def _get_queues(self, cr, uid, context=None):
-        if not hasattr(self, '_queues'):
-            return []
-        return self._queues
+    _name = 'jobs.storage'
 
     _rec_name = 'queue'
+    _log_access = False
 
     _columns = {
-        'queue': fields.selection(_get_queues, string='Queue'),
-        'task': fields.char('Task'),
-        'args': fields.serialized('Arguments'),
+        'uuid': fields.char('UUID', readonly=True, select=True),
+        'queue': fields.char('Queue', readonly=True),
+        'name': fields.char('Task', readonly=True),
+        'func': fields.text('Pickled Job Function', readonly=True),
+        # TODO: use the constants from module .tasks
         'state': fields.selection([('pending', 'Pending'),
+                                   ('queued', 'Queued'),
+                                   ('started', 'Started'),
+                                   ('failed', 'Failed'),
                                    ('done', 'Done')],
                                   string='State',
                                   readonly=True),
-        'traceback': fields.text('Traceback', readonly=True),
+        'exc_info': fields.text('Traceback', readonly=True),
         'result': fields.text('Result', readonly=True),
+        'date_start': fields.datetime('Date Start', readonly=True),
+        'date_enqueue': fields.datetime('Enqueue Time', readonly=True),
         'date_done': fields.datetime('Date Done', readonly=True),
-        'later_date': fields.datetime('Execute after'),
+        'only_after': fields.datetime('Execute only after'),
         }
 
     _defaults = {
         'state': 'pending',
         }
-
-    def delay(self, cr, uid, queue, task, **kwargs):
-        self.create(cr, uid, {'queue': queue, 'task': task, 'args': kwargs})
-        return True
-
-    def _get_task(self, task_name):
-        if self.task_registry is None:
-            raise ValueError('task_registry not defined')
-        return self.task_registry.get(task_name)
 
     def run(self, cr, uid, queue, max_count=None, context=None):
         _logger.debug('Starting execution of tasks on '

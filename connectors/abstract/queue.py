@@ -50,7 +50,7 @@ class task(object):
     def __call__(self, func):
         @wraps(func)
         def delay(session, *args, **kwargs):
-            self.queue.enqueue_args(session, func, args, kwargs)
+            self.queue.enqueue(session, func, *args, **kwargs)
         func.delay = delay
         return func
 
