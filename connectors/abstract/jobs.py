@@ -79,6 +79,8 @@ class AbstractJob(object):
         """
         if isinstance(job, basestring):
             job = cls(session, job_id=job)
+        else:
+            job = cls(session, job_id=job.id)
         job.refresh()
         return job
 
@@ -221,10 +223,11 @@ class OpenERPJob(AbstractJob):
         if self._result is not None:
             vals['result'] = self._result
 
-        self.storage_model.create(self.session.cr,
-                                  self.session.uid,
-                                  vals,
-                                  self.session.context)
+        self.storage_model.create(
+                self.session.cr,
+                self.session.uid,
+                vals,
+                self.session.context)
         self.session.commit()
 
     @property
@@ -234,7 +237,7 @@ class OpenERPJob(AbstractJob):
                     self.session.cr,
                     self.session.uid,
                     [('uuid', '=', self.id)],
-                    self.session.context,
+                    context=self.session.context,
                     limit=1)
             if job_ids:
                 self._openerp_id = job_ids[0]

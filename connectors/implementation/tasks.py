@@ -37,8 +37,8 @@ orders_queue = JobsQueue('orders')
 
 
 @task(default_queue)
-def _import_generic(session, model_name=None, record_id=None, mode='create',
-                    referential_id=None):
+def import_generic(session, model_name=None, record_id=None, mode='create',
+                   referential_id=None):
     """ Import a record from the external referential
 
     Use keyword arguments for the task arguments
@@ -65,8 +65,8 @@ def _import_generic(session, model_name=None, record_id=None, mode='create',
 
 
 @task(default_queue)
-def _export_generic(session, model_name=None, record_id=None,
-                    mode='create', fields=None, referential_id=None):
+def export_generic(session, model_name=None, record_id=None,
+                   mode='create', fields=None, referential_id=None):
     """ Export a record to the external referential
 
     Use keyword arguments for the task arguments
@@ -128,12 +128,12 @@ class res_users(orm.Model):
         orders_queue.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
         orders_queue.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
 
-        # syntactic sugar
+        # # syntactic sugar
         test1.delay(session, 'a', 1)
         test1.delay(session, 'a', 1)
         test2.delay(session, 'a', 2)
         test2.delay(session, 'b', 1)
-        # direct, no job
+        # # direct, no job
         test2(session, 'b', 10)
 
         # work
