@@ -20,8 +20,11 @@
 ##############################################################################
 
 import logging
+import importlib
+import inspect
 from uuid import uuid4
 from datetime import datetime
+from cPickle import loads, dumps, UnpicklingError
 
 from openerp.osv import orm, fields
 
@@ -35,21 +38,6 @@ FAILED = 'failed'
 _logger = logging.getLogger(__name__)
 
 
-
-class TasksRegistry(object):
-
-    def __init__(self):
-        self.tasks = {}
-
-    def get(self, task):
-        if task in self.tasks:
-            return self.tasks[task]
-        raise ValueError('No matching task found')
-
-    def register(self, task_name, function):
-        self.tasks[task_name] = function
-
-
 class AbstractJob(object):
     """ Job metadata
     """
@@ -57,36 +45,64 @@ class AbstractJob(object):
     storage = None  # class which handle the storage
 
     @classmethod
-    def create(cls, session, func, args, kwargs, job_id=None):
+    def create(cls, session, func, args=None, kwargs=None):
         """ Create a job """
+        if args is None:
+            args = ()
+        assert isinstance(args, tuple), "%s: args are not a tuple" % args
+        if kwargs is None:
+            kwargs = {}
+        assert isinstance(kwargs, dict), "%s: kwargs are not a dict" % kwargs
+        job = cls(session)
+        if inspect.ismethod(func):
+            job._instance = func.im_self
+            job._func_name = func.__name__
+        elif inspect.isfunction(func):
+            job._func_name = '%s.%s' % (func.__module__, func.__name__)
+        else:
+            job._func_name = func  # str
+
+        job._args = args
+        job._kwargs = kwargs
+        job.name = job.func_string()
+        return job
 
     @classmethod
     def exists(cls, session, job_id):
         """Returns if a job still exists in the storage."""
 
     @classmethod
-    def fetch(cls, session, job_id):
+    def fetch(cls, session, job):
         """Fetch and read a job from the storage and instanciate it
         """
-        job = cls(session, id=job_id)
+        if isinstance(job, basestring):
+            job = cls(session, job_id=job)
         job.refresh()
         return job
 
-    def __init__(self, session, id=None):
+    def __init__(self, session, job_id=None):
         self.session = session
 
-        self._id = id
+        self._id = job_id
 
-        self.created_at = datetime.now()
-        self.ended_at = None
-        self._only_after = None
+        self.date_created = datetime.now()
+        self.date_enqueued = None
+        self.date_started = None
+        self.date_done = None
+        self.only_after = None
+
+        self.queue = None
+        self.name = None
+        self._func_name = None
+        self._instance = None
+        self._args = None
+        self._kwargs = None
 
         self._result = None
-        self._status = None
+        self._state = None
+        self.exc_info = None
 
-        self.meta = {}
-
-    def save(self):
+    def store(self):
         """ Store the Job """
 
     def refresh(self):
@@ -97,10 +113,16 @@ class AbstractJob(object):
 
     def perform(self):
         """ Execute a job """
+        self._result = self.func(*self.args, **self.kwargs)
+        return self._result
 
-    @property
-    def state(self):
-        return self._status
+    def func_string(self):
+        if self.func_name is None:
+            return None
+        args = [repr(arg) for arg in self.args]
+        kwargs = ['%s=%r' % (key, val) for key, val
+                  in self.kwargs.iteritems()]
+        return '%s(%s)' % (self.func_name, ', '.join(args + kwargs))
 
     @property
     def id(self):
@@ -110,11 +132,42 @@ class AbstractJob(object):
             self._id = unicode(uuid4())
         return self._id
 
-    def status(self):
-        """Returns the status of the job."""
+    @property
+    def instance(self):
+        return self._instance
 
-    def set_status(self, status, result=None, traceback=None):
-        """Change the status of the job."""
+    @property
+    def func_name(self):
+        return self._func_name
+
+    @property
+    def func(self):
+        func_name = self.func_name
+        if func_name is None:
+            return None
+
+        if self.instance:
+            return getattr(self.instance, func_name)
+
+        module_name, func_name = func_name.rsplit('.', 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, func_name)
+
+    @property
+    def args(self):
+        return self._args
+
+    @property
+    def kwargs(self):
+        return self._kwargs
+
+    @property
+    def state(self):
+        """Returns the state of the job."""
+        return self._state
+
+    def set_state(self, state, result=None, traceback=None):
+        """Change the state of the job."""
 
     def __repr__(self):
         return '<Job %s>' % self.id
@@ -123,15 +176,12 @@ class AbstractJob(object):
 class OpenERPJob(AbstractJob):
     """Implementation of a job on an OpenERP storage"""
 
-    @classmethod
-    def create(cls, session, func, args, kwargs, job_id=None):
-        """ Create a job """
-        return cls(session)
+    _storage_model_name = 'jobs.storage'
 
     @classmethod
     def exists(cls, session, job_id):
         """Returns if a job still exists in the storage."""
-        stor = session.pool.get('job.storage')
+        stor = session.pool.get(cls._storage_model_name)
         jobs = stor.search(session.cr,
                            session.uid,
                            [('uuid', '=', job_id)],
@@ -141,24 +191,85 @@ class OpenERPJob(AbstractJob):
             return True
         return False
 
-    def save(self):
+    def __init__(self, session, job_id=None):
+        super(OpenERPJob, self).__init__(session, job_id=job_id)
+        self.storage_model = self.session.pool.get(self._storage_model_name)
+        assert self.storage_model is not None, ("Model %s not found" %
+                                                self._storage_model_name)
+        self._openerp_id = None
+
+    def store(self):
         """ Store the Job """
-        stor = self.session.pool.get('job.storage')
         vals = dict(uuid=self.id,
                     state=self.state,
-                    queue=None,
-                    func=None,  # TODO: assign all fields
-                    name=None,
-                    exc_info=None,
-                    result=None,
-                    date_start=None,
-                    date_enqueue=None,
+                    queue=self.queue,
+                    name=self.func_name,
+                    date_started=None,  # TODO complete assignments
+                    date_enqueued=None,
                     date_done=None,
                     only_after=None)
-        stor.create(self.session.cr,
+
+        vals['func'] = dumps((self.instance,
+                              self.func_name,
+                              self.args,
+                              self.kwargs))
+
+        if self.exc_info is not None:
+            vals['exc_info'] = self.exc_info
+        if self._result is not None:
+            vals['result'] = self._result
+
+        self.storage_model.create(self.session.cr,
+                                  self.session.uid,
+                                  vals,
+                                  self.session.context)
+        self.session.commit()
+
+    @property
+    def openerp_id(self):
+        if self._openerp_id is None:
+            job_ids = self.storage_model.search(
+                    self.session.cr,
                     self.session.uid,
-                    vals,
-                    self.session.context)
+                    [('uuid', '=', self.id)],
+                    self.session.context,
+                    limit=1)
+            if job_ids:
+                self._openerp_id = job_ids[0]
+
+        return self._openerp_id
+
+    def refresh(self):
+        """ read again the metadata from the storage """
+        stored = self.storage_model.browse(self.session.cr,
+                                           self.session.uid,
+                                           self.openerp_id,
+                                           context=self.session.context)
+
+        self._instance, self._func_name, self._args, self._kwargs = loads(str(stored.func))
+        self.date_created = stored.date_created
+        self.date_started = stored.date_started if stored.date_started else None
+        self.date_enqueued = stored.date_enqueued if stored.date_enqueued else None
+        self.date_done = stored.date_done if stored.date_done else None
+        self.only_after = stored.only_after if stored.only_after else None
+        self._state = stored.state
+        self._result = loads(str(stored.result)) if stored.result else None
+        self.exc_info = stored.exc_info if stored.exc_info else None
+
+    def set_state(self, state, result=None, exc_info=None):
+        """Change the state of the job."""
+        vals = dict(state=state)
+        if result is not None:
+            vals['result'] = dumps(result)
+        if exc_info is not None:
+            vals['exc_info'] = exc_info
+        self.storage_model.write(self.session.cr,
+                                 self.session.uid,
+                                 self.openerp_id,
+                                 vals,
+                                 context=self.session.context)
+        self.session.commit()
+
 
 
 # TODO handle only the storage of the jobs
@@ -185,8 +296,9 @@ class JobsStorage(orm.Model):
                                   readonly=True),
         'exc_info': fields.text('Traceback', readonly=True),
         'result': fields.text('Result', readonly=True),
-        'date_start': fields.datetime('Date Start', readonly=True),
-        'date_enqueue': fields.datetime('Enqueue Time', readonly=True),
+        'date_created': fields.datetime('Create Date', readonly=True),
+        'date_started': fields.datetime('Start Date', readonly=True),
+        'date_enqueued': fields.datetime('Enqueue Time', readonly=True),
         'date_done': fields.datetime('Date Done', readonly=True),
         'only_after': fields.datetime('Execute only after'),
         }
@@ -194,42 +306,3 @@ class JobsStorage(orm.Model):
     _defaults = {
         'state': 'pending',
         }
-
-    def run(self, cr, uid, queue, max_count=None, context=None):
-        _logger.debug('Starting execution of tasks on '
-                      'the queue \'%s\'', queue)
-        task_ids = self.search(
-                cr, uid,
-                [('queue', '=', queue),
-                 ('state', '=', 'pending')],
-                limit=max_count,
-                context=context)
-        session = Session(cr, uid, self.pool, None, context=context)
-        for task_id in task_ids:
-            # lock the row to avoid to be processed by another job
-            sql = "SELECT id FROM %s " % self._table
-            sql += "WHERE id = %s FOR UPDATE"
-            # TODO catch lock exceptions
-            cr.execute(sql, (task_id,))
-
-            task = self.browse(cr, uid, task_id, context=context)
-
-            # the session create a cursor and manage its transactional state
-            with session.own_transaction() as subsession:
-                _logger.debug('Execute task %d (%s) on the queue \'%s\'',
-                              task_id, task.task, queue)
-                try:
-                    self._get_task(task.task)(subsession, **task.args)
-                except Exception as err:  # XXX catch which exception?
-                    msg = ''.join(traceback.format_exception(*sys.exc_info()))
-                    task.write({'traceback': msg})
-                    _logger.exception('Error during execution of task: %d',
-                                      task_id)
-                else:
-                    task.write({'state': 'done', 'traceback': False})
-
-            # release lock on the row
-            session.commit()
-
-        _logger.debug('Finished execution of tasks on the queue \'%s\'', queue)
-        return True

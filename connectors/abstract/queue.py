@@ -22,9 +22,12 @@ import logging
 import random
 import os
 import errno
+import sys
+import traceback
 from Queue import Queue, Empty
 from functools import wraps
 from copy import copy
+from datetime import datetime
 
 from openerp.osv import orm, fields
 from openerp import pooler
@@ -33,12 +36,6 @@ from .tasks import OpenERPJob, STARTED , QUEUED, DONE, FAILED
 
 _logger = logging.getLogger(__name__)
 
-# TODO implement a memory queue
-# on start: take all the pending tasks
-# on write of a task: create a task in the queue
-# on end of the task: remove it
-# warning with multiprocess: only 1 process should
-# take the pending tasks
 
 # decorators
 class task(object):
@@ -50,7 +47,7 @@ class task(object):
     def __call__(self, func):
         @wraps(func)
         def delay(session, *args, **kwargs):
-            self.queue.enqueue(session, func, *args, **kwargs)
+            self.queue.enqueue_args(session, func, args=args, kwargs=kwargs)
         func.delay = delay
         return func
 
@@ -81,23 +78,29 @@ class JobsQueue(AbstractQueue):
     job_cls = OpenERPJob
 
     def __init__(self, key):
-        self._key = key
+        self.key = key
         self._queue = Queue()
 
     def enqueue(self, session, func, *args, **kwargs):
         """Create a Job and enqueue it in the queue"""
         only_after = kwargs.pop('only_after', None)
 
-        return self.enqueue_args(session, func, args, kwargs,
-                                 only_after=only_after)
+        return self.enqueue_args(session, func, args=args,
+                                 kwargs=kwargs, only_after=only_after)
 
-    def enqueue_job(self, job):
+    def enqueue_job(self, job, only_after=None):
+        job.queue = self.key
+        job.date_enqueued = datetime.now()
+        job.only_after = only_after
+        job.store()
+
         self._queue.put_nowait(job)  # XXX blocking?
         _logger.debug('Job %s enqueued', job)
 
-    def enqueue_args(self, session, func, args, kwargs, only_after=None):
+    def enqueue_args(self, session, func, args=None, kwargs=None,
+                     only_after=None):
         job = self.job_cls.create(session, func, args, kwargs)
-        self.enqueue_job(job)
+        self.enqueue_job(job, only_after=only_after)
 
     def dequeue(self, session):
         """ Take the first job from the queue and return it """
@@ -131,10 +134,10 @@ class JobsQueue(AbstractQueue):
         return None
 
     def __repr__(self):
-        return 'JobsQueue(%r)' % self._key
+        return 'JobsQueue(%r)' % self.key
 
     def __str__(self):
-        return '<JobsQueue \'%s\'>' % self._key
+        return '<JobsQueue \'%s\'>' % self.key
 
 
 class QueueSet(object):
@@ -237,7 +240,13 @@ class Worker(object):
         random.seed()
         self.log = logging.getLogger('fork')
 
-        success = self._do_forked_job(job)
+        with self.session.own_transaction() as subsession:
+            # XXX better way to use the subsession?
+            # use a local stack of sessions?
+            job.session = subsession
+            success = self._do_forked_job(job)
+
+        job.session = self.session
 
         # exit the fork
         os._exit(int(not success))
@@ -248,11 +257,16 @@ class Worker(object):
 
         try:
             result = job.perform()
-            job.set_status(DONE, result=result)
+            job.set_state(DONE, result=result)
         except:
-            # TODO traceback
-            job.set_status(FAILED, traceback=None)
-            # TODO how to handle the exception?
+            # TODO allow to pass a pipeline of exception
+            # handlers (log errors, send by email, ...)
+            exc_info = sys.exc_info()
+            exc_string = ''.join(
+                traceback.format_exception_only(*exc_info[:2]) +
+                traceback.format_exception(*exc_info))
+            self.log.error(exc_string)
+            job.set_state(FAILED, exc_info=exc_string)
             return False
         return True
 
@@ -271,7 +285,7 @@ class Worker(object):
                 continue
 
             job, queue = result
-            job.set_status(STARTED)
+            job.set_state(STARTED)
             self.fork_and_run_job(job)
 
         self.log.info('Stop %s', self)
@@ -289,16 +303,16 @@ class res_users(orm.Model):
                           self.pool,
                           self._name,
                           context=context)
-        queue1.enqueue(session, test1, ['a', 1])
-        queue1.enqueue(session, test1, ['a', 1])
-        queue2.enqueue(session, test1, ['b', 1])
-        queue2.enqueue(session, test2, ['b'], {'b': 2})
-        queue2.enqueue(session, test2, ['b'], {'b': 2})
+        queue1.enqueue_args(session, test1, ('a', 1))
+        queue1.enqueue_args(session, test1, ('a', 1))
+        queue2.enqueue_args(session, test1, ('b', 1))
+        queue2.enqueue_args(session, test2, ('b',), {'b': 2})
+        queue2.enqueue_args(session, test2, ('b',), {'b': 2})
 
-        test1.delay('a', 1)
-        test1.delay('a', 1)
-        test2.delay('a', 2)
-        test2.delay('b', 1)
+        test1.delay(session, 'a', 1)
+        test1.delay(session, 'a', 1)
+        test2.delay(session, 'a', 2)
+        test2.delay(session, 'b', 1)
         test2('b', 10)
         Worker(session, PriorityQueueSet((queue1, 10), (queue2, 30))).work()
         return True

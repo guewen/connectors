@@ -19,7 +19,6 @@
 #
 ##############################################################################
 
-from .queue import TASKS
 from ..abstract.synchronizers import SingleImport, SingleExport
 from ..abstract.references import get_reference
 
@@ -50,7 +49,7 @@ def _import_generic(session, model_name=None, record_id=None, mode='create',
     importer = importer_cls(ref, session, model_name, referential_id)
     importer.work(record_id, mode, with_commit=True)
 
-TASKS.register('import_generic', _import_generic)
+# TASKS.register('import_generic', _import_generic)
 
 
 def _export_generic(session, model_name=None, record_id=None,
@@ -86,4 +85,4 @@ def _export_generic(session, model_name=None, record_id=None,
     exporter.work(record_id, mode, fields=fields, with_commit=True)
 
 
-TASKS.register('export_generic', _export_generic)
+# TASKS.register('export_generic', _export_generic)
