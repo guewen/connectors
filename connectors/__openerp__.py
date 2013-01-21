@@ -30,7 +30,7 @@ Experiments around the connectors, with chocolate.
     'website': '',
     'depends': ['delivery'],
     'data': [
-        'implementation/queue_view.xml',
+        'abstract/jobs_view.xml',
     ],
     'installable': True,
 }
