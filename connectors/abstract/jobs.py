@@ -44,31 +44,6 @@ class AbstractJob(object):
     """ Job metadata
     """
 
-    storage = None  # class which handle the storage
-
-    @classmethod
-    def create(cls, session, func, args=None, kwargs=None):
-        """ Create a job """
-        if args is None:
-            args = ()
-        assert isinstance(args, tuple), "%s: args are not a tuple" % args
-        if kwargs is None:
-            kwargs = {}
-        assert isinstance(kwargs, dict), "%s: kwargs are not a dict" % kwargs
-        job = cls(session)
-        if inspect.ismethod(func):
-            job._instance = func.im_self
-            job._func_name = func.__name__
-        elif inspect.isfunction(func):
-            job._func_name = '%s.%s' % (func.__module__, func.__name__)
-        else:
-            job._func_name = func  # str
-
-        job._args = args
-        job._kwargs = kwargs
-        job.name = job.func_string()
-        return job
-
     @classmethod
     def exists(cls, session, job_id):
         """Returns if a job still exists in the storage."""
@@ -84,27 +59,48 @@ class AbstractJob(object):
         job.refresh()
         return job
 
-    def __init__(self, session, job_id=None):
-        self.session = session
+    def __init__(self, session, job_id=None, func=None,
+                 args=None, kwargs=None, priority=10, only_after=None):
+        if args is None:
+            args = ()
+        assert isinstance(args, tuple), "%s: args are not a tuple" % args
+        if kwargs is None:
+            kwargs = {}
 
+        assert isinstance(kwargs, dict), "%s: kwargs are not a dict" % kwargs
+        assert not(job_id is None and func is None), "job_id or func is required"
+
+        self._instance = None
+        self._func_name = None
+        if func:
+            if inspect.ismethod(func):
+                self._instance = func.im_self
+                self._func_name = func.__name__
+            elif inspect.isfunction(func):
+                self._func_name = '%s.%s' % (func.__module__, func.__name__)
+            else:
+                self._func_name = func  # str
+
+        self.session = session
         self._id = job_id
+
+        self._args = args
+        self._kwargs = kwargs
+
+        self.only_after = only_after
+        self.priority = priority
 
         self.date_created = datetime.now()
         self.date_enqueued = None
         self.date_started = None
         self.date_done = None
-        self.only_after = None
-
-        self.queue = None
-        self.name = None
-        self._func_name = None
-        self._instance = None
-        self._args = None
-        self._kwargs = None
 
         self._result = None
         self._state = None
         self.exc_info = None
+
+    def __cmp__(self, other):
+        return cmp(self.priority, other.priority)
 
     def store(self):
         """ Store the Job """
@@ -177,7 +173,7 @@ class AbstractJob(object):
         return '<Job %s>' % self.id
 
 
-class OpenERPJob(AbstractJob):
+class OpenERPJob(AbstractJob):  # TODO replace inheritance by composition
     """Implementation of a job on an OpenERP storage"""
 
     _storage_model_name = 'jobs.storage'
@@ -195,8 +191,12 @@ class OpenERPJob(AbstractJob):
             return True
         return False
 
-    def __init__(self, session, job_id=None):
-        super(OpenERPJob, self).__init__(session, job_id=job_id)
+    def __init__(self, session, job_id=None, func=None,
+                 args=None, kwargs=None, priority=10, only_after=None):
+        super(OpenERPJob, self).__init__(session, job_id=job_id, func=func,
+                                         args=args, kwargs=kwargs,
+                                         priority=priority,
+                                         only_after=only_after)
         self.storage_model = self.session.pool.get(self._storage_model_name)
         assert self.storage_model is not None, ("Model %s not found" %
                                                 self._storage_model_name)
@@ -206,8 +206,7 @@ class OpenERPJob(AbstractJob):
         """ Store the Job """
         vals = dict(uuid=self.id,
                     state=self.state,
-                    queue=self.queue,
-                    name=self.func_name,
+                    name=self.func_string(),
                     date_started=None,  # TODO complete assignments
                     date_enqueued=None,
                     date_done=None,
@@ -235,7 +234,7 @@ class OpenERPJob(AbstractJob):
         if self._openerp_id is None:
             job_ids = self.storage_model.search(
                     self.session.cr,
-                    self.session.uid,
+                    self.session.uid,  # XXX user_root
                     [('uuid', '=', self.id)],
                     context=self.session.context,
                     limit=1)

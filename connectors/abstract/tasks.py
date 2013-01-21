@@ -21,21 +21,14 @@
 
 from functools import wraps
 
-import queue as que
+from .queue import JobsQueue
 
 
 # decorators
-class task(object):
-
-    def __init__(self, queue):
-        assert isinstance(queue, que.AbstractQueue), "%s: invalid queue" % queue
-        self.queue = queue
-
-    def __call__(self, func):
-        @wraps(func)
-        def delay(session, *args, **kwargs):
-            self.queue.enqueue_args(session, func, args=args, kwargs=kwargs)
-        func.delay = delay
-        return func
+def task(func):
+    def delay(session, *args, **kwargs):
+        JobsQueue.instance.enqueue_args(session, func, args=args, kwargs=kwargs)
+    func.delay = delay
+    return func
 
 # TODO periodic_task?

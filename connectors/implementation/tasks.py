@@ -25,18 +25,13 @@ from ..abstract.synchronizers import SingleImport, SingleExport
 from ..abstract.references import get_reference
 from ..abstract.tasks import task
 from ..abstract.session import Session
-from ..abstract.queue import JobsQueue, PriorityQueueSet
 from ..abstract.worker import Worker
+from ..abstract.queue import JobsQueue
 
 _logger = logging.getLogger(__name__)
 
 
-default_queue = JobsQueue('default')
-orders_queue = JobsQueue('orders')
-
-
-
-@task(default_queue)
+@task
 def import_generic(session, model_name=None, record_id=None, mode='create',
                    referential_id=None):
     """ Import a record from the external referential
@@ -64,7 +59,7 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
     importer.work(record_id, mode, with_commit=True)
 
 
-@task(default_queue)
+@task
 def export_generic(session, model_name=None, record_id=None,
                    mode='create', fields=None, referential_id=None):
     """ Export a record to the external referential
@@ -102,14 +97,15 @@ def export_generic(session, model_name=None, record_id=None,
 
 from openerp.osv import orm
 
-@task(default_queue)
+@task
 def test1(session, a, b):
     _logger.debug('test1 %s %s', a, b)
 
 
-@task(orders_queue)
+@task
 def test2(session, a, b=None):
     _logger.debug('test2 %s %s', a, b)
+
 
 class res_users(orm.Model):
     _inherit = 'res.users'
@@ -122,23 +118,18 @@ class res_users(orm.Model):
                           context=context)
 
         # enqueue
-        default_queue.enqueue_args(session, test1, args=('a', 1))
-        default_queue.enqueue_args(session, test1, args=('a', 1))
-        orders_queue.enqueue_args(session, test1, args=('b', 1))
-        orders_queue.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
-        orders_queue.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
+        JobsQueue.instance.enqueue_args(session, test1, args=('a', 1))
+        JobsQueue.instance.enqueue_args(session, test1, args=('a', 1))
+        JobsQueue.instance.enqueue_args(session, test1, args=('b', 1))
+        JobsQueue.instance.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
+        JobsQueue.instance.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
 
         # # syntactic sugar
+        test1.delay(session, 'a', 1, priority=20)
         test1.delay(session, 'a', 1)
-        test1.delay(session, 'a', 1)
-        test2.delay(session, 'a', 2)
+        test2.delay(session, 'a', 2, priority=2)
         test2.delay(session, 'b', 1)
         # # direct, no job
         test2(session, 'b', 10)
-
         # work
-        worker = Worker(session,
-                        PriorityQueueSet((default_queue, 10),
-                                         (orders_queue, 30)))
-        worker.work()
         return True

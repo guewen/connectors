@@ -19,91 +19,78 @@
 #
 ##############################################################################
 
-import os
-import errno
-import sys
+import StringIO
 import traceback
 import logging
-import random
+import threading
 
-from .queue import JobsQueue
+import openerp
 from .jobs import OpenERPJob, STARTED, DONE, FAILED
+from .queue import JobsQueue
+from .session import Session
 
 _logger = logging.getLogger(__name__)
 
 
-class Worker(object):
+class Worker(threading.Thread):
 
-    queue_cls = JobsQueue
-
-    def __init__(self, session, queue_set):
+    def __init__(self, session, dbname, queue=JobsQueue.instance):
+        super(Worker, self).__init__()
         self.session = session
-        self.log = _logger
-        self.queue_set = queue_set
+        self.queue = queue
+        self.dbname = dbname
 
-    def fork_and_run_job(self, job):
-        """ Fork the process and give it a job """
-        pid = os.fork()
-        if pid == 0:  # child
-            self._do_forked(job)
-        else:  # parent
-            self.log.debug('Forked with pid: %d', pid)
-            # XXX [Errno 10] No child processes
-            # have to set signal handlers
-            # while True:
-            #     os.waitpid(pid, 0)
-
-    def _do_forked(self, job):
-        """ Child fork stuff """
-        random.seed()
-        self.log = logging.getLogger('fork')
-
-        with self.session.own_transaction() as subsession:
-            # XXX find a better way to use the subsession in the job
-            # use a local stack of sessions?
-            job.session = subsession
-            success = self._do_forked_job(job)
-
-        job.session = self.session
-
-        # exit the fork
-        os._exit(int(not success))
-
-    def _do_forked_job(self, job):
-        """ Execute the forked job """
-        self.log.debug('Starting job', job)
-
+    def run_job(self, job):
+        """ """
+        result = None
+        failed = False
         try:
-            result = job.perform()
-            job.set_state(DONE, result=result)
+            with self.session.own_transaction() as subsession:
+                # XXX find a better way to use the subsession in the job
+                # use a local stack of sessions?
+                job.session = subsession
+
+                _logger.debug('Starting job: %s', job)
+                result = job.perform()  # result of the task
+                job.set_state(DONE, result=result)
         except:
             # TODO allow to pass a pipeline of exception
             # handlers (log errors, send by email, ...)
-            exc_info = sys.exc_info()
-            exc_string = ''.join(
-                traceback.format_exception_only(*exc_info[:2]) +
-                traceback.format_exception(*exc_info))
-            self.log.error(exc_string)
-            job.set_state(FAILED, exc_info=exc_string)
-            return False
-        return True
+            buff = StringIO.StringIO()
+            traceback.print_exc(file=buff)
+            _logger.error(buff.getvalue())
+            job.session = self.session
+            job.set_state(FAILED, exc_info=buff.getvalue())
 
-    def work(self):
+        return result
+
+    def run(self):
         """ """
-        self.log.info('Start %s', self)
+        _logger.info('Start %s', self)
         while True:
             try:
-                result = self.queue_cls.dequeue_first(
-                        self.session, self.queue_set)
-                if result is None:
-                    break
+                job = self.queue.dequeue(self.session)
+                if job is None:
+                    continue
             except Exception as err:
-                self.log.exception(err)
+                _logger.exception(err)
                 # which exceptions and how?
                 continue
 
-            job, queue = result
             job.set_state(STARTED)
-            self.fork_and_run_job(job)
+            self.run_job(job)
 
-        self.log.info('Stop %s', self)
+        _logger.info('Stop %s', self)
+
+
+# TODO remove those lines of test
+db = openerp.sql_db.db_connect('openerp_magento7')
+cr = db.cursor()
+registry = openerp.pooler.get_pool('openerp_magento7')
+session = Session(cr, openerp.SUPERUSER_ID, registry)
+try:
+    worker = Worker(session, 'openerp_magento7')
+    # worker.daemon = True
+    worker.start()
+finally:
+    cr.close()
