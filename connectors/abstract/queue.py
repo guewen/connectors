@@ -4,6 +4,9 @@
 #    Author: Guewen Baconnier
 #    Copyright 2012 Guewen Baconnier
 #
+#    Queues inspired by Celery and rq-python
+#    Some part of code may be: Copyright 2012 Vincent Driessen
+#
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
 #    published by the Free Software Foundation, either version 3 of the
@@ -20,38 +23,26 @@
 ##############################################################################
 import logging
 import random
-import os
-import errno
-import sys
-import traceback
 from Queue import Queue, Empty
-from functools import wraps
 from copy import copy
 from datetime import datetime
 
-from openerp.osv import orm, fields
-from openerp import pooler
 from .session import Session
-from .tasks import OpenERPJob, STARTED , QUEUED, DONE, FAILED
+from .jobs import OpenERPJob, STARTED , QUEUED, DONE, FAILED
+from .tasks import task
 
 _logger = logging.getLogger(__name__)
 
 
-# decorators
-class task(object):
+def on_start_queues():
+    """ Assign all pending jobs to queues
 
-    def __init__(self, queue):
-        assert isinstance(queue, AbstractQueue), "%s: invalid queue" % queue
-        self.queue = queue
+    Must be called when OpenERP starts.
 
-    def __call__(self, func):
-        @wraps(func)
-        def delay(session, *args, **kwargs):
-            self.queue.enqueue_args(session, func, args=args, kwargs=kwargs)
-        func.delay = delay
-        return func
-
-# TODO periodic_task?
+    Warning: if OpenERP has many processes with Gunicorn only 1 process must
+    take the jobs.
+    """
+    # TODO
 
 
 class AbstractQueue(object):
@@ -212,132 +203,3 @@ class PriorityQueueSet(QueueSet):
 
         for queue in ordered_queues:
             yield queue
-
-
-class Worker(object):
-
-    queue_cls = JobsQueue
-
-    def __init__(self, session, queue_set):
-        self.session = session
-        self.log = _logger
-        self.queue_set = queue_set
-
-    def fork_and_run_job(self, job):
-        """ Fork the process and give it a job """
-        pid = os.fork()
-        if pid == 0:  # child
-            self._do_forked(job)
-        else:  # parent
-            self.log.debug('Forked with pid: %d', pid)
-            # XXX [Errno 10] No child processes
-            # have to set signal handlers
-            # while True:
-            #     os.waitpid(pid, 0)
-
-    def _do_forked(self, job):
-        """ Child fork stuff """
-        random.seed()
-        self.log = logging.getLogger('fork')
-
-        with self.session.own_transaction() as subsession:
-            # XXX better way to use the subsession?
-            # use a local stack of sessions?
-            job.session = subsession
-            success = self._do_forked_job(job)
-
-        job.session = self.session
-
-        # exit the fork
-        os._exit(int(not success))
-
-    def _do_forked_job(self, job):
-        """ Execute the forked job """
-        self.log.debug('Starting job', job)
-
-        try:
-            result = job.perform()
-            job.set_state(DONE, result=result)
-        except:
-            # TODO allow to pass a pipeline of exception
-            # handlers (log errors, send by email, ...)
-            exc_info = sys.exc_info()
-            exc_string = ''.join(
-                traceback.format_exception_only(*exc_info[:2]) +
-                traceback.format_exception(*exc_info))
-            self.log.error(exc_string)
-            job.set_state(FAILED, exc_info=exc_string)
-            return False
-        return True
-
-    def work(self):
-        """ """
-        self.log.info('Start %s', self)
-        while True:
-            try:
-                result = self.queue_cls.dequeue_first(
-                        self.session, self.queue_set)
-                if result is None:
-                    break
-            except Exception as err:
-                self.log.exception(err)
-                # which exceptions and how?
-                continue
-
-            job, queue = result
-            job.set_state(STARTED)
-            self.fork_and_run_job(job)
-
-        self.log.info('Stop %s', self)
-
-
-
-from openerp.osv import orm
-
-class res_users(orm.Model):
-    _inherit = 'res.users'
-
-    def test(self, cr, uid, ids, context=None):
-        session = Session(cr,
-                          uid,
-                          self.pool,
-                          self._name,
-                          context=context)
-        queue1.enqueue_args(session, test1, ('a', 1))
-        queue1.enqueue_args(session, test1, ('a', 1))
-        queue2.enqueue_args(session, test1, ('b', 1))
-        queue2.enqueue_args(session, test2, ('b',), {'b': 2})
-        queue2.enqueue_args(session, test2, ('b',), {'b': 2})
-
-        test1.delay(session, 'a', 1)
-        test1.delay(session, 'a', 1)
-        test2.delay(session, 'a', 2)
-        test2.delay(session, 'b', 1)
-        test2('b', 10)
-        Worker(session, PriorityQueueSet((queue1, 10), (queue2, 30))).work()
-        return True
-
-
-queue1 = JobsQueue('queue1')
-queue2 = JobsQueue('queue2')
-
-
-@task(queue1)
-def test1(a, b):
-    _logger.debug('test1 %s %s', a, b)
-
-
-@task(queue2)
-def test2(a, b=None):
-    _logger.debug('test2 %s %s', a, b)
-
-
-def on_start_queues():
-    """ Assign all pending jobs to queues
-
-    Must be called when OpenERP starts.
-
-    Warning: if OpenERP has many processes with Gunicorn only 1 process must
-    take the jobs.
-    """
-
