@@ -34,7 +34,7 @@ from .tasks import task
 _logger = logging.getLogger(__name__)
 
 
-def on_start_queues():
+def on_start_put_in_queues():
     """ Assign all pending jobs to queues
 
     Must be called when OpenERP starts.

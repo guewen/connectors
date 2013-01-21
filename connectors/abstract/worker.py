@@ -59,7 +59,7 @@ class Worker(object):
         self.log = logging.getLogger('fork')
 
         with self.session.own_transaction() as subsession:
-            # XXX better way to use the subsession?
+            # XXX find a better way to use the subsession in the job
             # use a local stack of sessions?
             job.session = subsession
             success = self._do_forked_job(job)
