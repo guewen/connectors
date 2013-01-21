@@ -283,7 +283,6 @@ class JobsStorage(orm.Model):
     """
     _name = 'jobs.storage'
 
-    _rec_name = 'queue'
     _log_access = False
 
     _columns = {

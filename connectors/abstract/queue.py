@@ -194,6 +194,7 @@ class PriorityQueueSet(QueueSet):
 
         ordered_queues = []
         for _ in xrange(len(queues)):
+            # TODO find a more efficient and clever algo
             ratios, maximum = self.ratios(queues)
             rand = random.randint(0, maximum)
             queue = next(que for que, qrange in ratios.iteritems()
