@@ -41,6 +41,9 @@ class connectors_installed(orm.AbstractModel):
 
 
 # generic producers of events on models
+# we'll probably have issues if another addon do the same
+# trick with object_proxy (like audittrail), to check
+# and find a counter-trick
 class model_producers(object_proxy):
     """ Proxy around the orm Models which tracks the changes
     on the records and fires the events.
