@@ -90,7 +90,7 @@ registry = openerp.pooler.get_pool('openerp_magento7')
 session = Session(cr, openerp.SUPERUSER_ID, registry)
 try:
     worker = Worker(session, 'openerp_magento7')
-    # worker.daemon = True
+    worker.daemon = True
     worker.start()
 finally:
     cr.close()
