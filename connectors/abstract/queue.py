@@ -53,53 +53,40 @@ class JobsQueue(object):
     def __init__(self):
         self._queue = PriorityQueue()
 
-    def enqueue(self, session, func, *args, **kwargs):
+    def enqueue_resolve_args(self, session, func, *args, **kwargs):
         """Create a Job and enqueue it in the queue"""
         priority = kwargs.pop('priority', None)
         only_after = kwargs.pop('only_after', None)
 
-        return self.enqueue_args(session, func, args=args,
-                                 kwargs=kwargs, priority=priority,
-                                 only_after=only_after)
+        return self.enqueue(session, func, args=args,
+                            kwargs=kwargs, priority=priority,
+                            only_after=only_after)
 
     def enqueue_job(self, job):
         job.date_enqueued = datetime.now()
         job.store()
 
-        self._queue.put_nowait(job)
+        self._queue.put_nowait(job.id)
         _logger.debug('Job %s enqueued', job)
 
-    def enqueue_args(self, session, func, args=None, kwargs=None,
-                     only_after=None, priority=None):
+    def enqueue(self, session, func, args=None, kwargs=None,
+                priority=None, only_after=None):
         job = self.job_cls(session, func=func, args=args, kwargs=kwargs,
                            priority=priority, only_after=only_after)
         self.enqueue_job(job)
 
-    def dequeue(self, session):
+    def dequeue(self):
         """ Take the first job from the queue and return it """
         # try:
         #     job_id = self._queue.get_nowait()
         # except Empty as err:
         #     return None
         job_id = self._queue.get()
-        try:
-            # XXX tests
-            import openerp
-            db = openerp.sql_db.db_connect('openerp_magento7')
-            cr = db.cursor()
-            registry = openerp.pooler.get_pool('openerp_magento7')
-            session = Session(cr, openerp.SUPERUSER_ID, registry)
-            try:
-                job = self.job_cls.fetch(session, job_id)
-            finally:
-                cr.close()
-        except:
-            # TODO handle:
-            # - no job (recall dequeue to continue to the next)
-            # - job fetching error
-            raise
-        _logger.debug('Fetched job %s', job)
-        return job
+        _logger.debug('Fetched job %s', job_id)
+        return job_id
+
+    def fetch_job(self, session, job_id):
+        return self.job_cls.fetch(session, job_id)
 
 
 JobsQueue.instance = JobsQueue()

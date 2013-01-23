@@ -27,7 +27,8 @@ from .queue import JobsQueue
 # decorators
 def task(func):
     def delay(session, *args, **kwargs):
-        JobsQueue.instance.enqueue_args(session, func, args=args, kwargs=kwargs)
+        JobsQueue.instance.enqueue_resolve_args(
+                session, func, *args, **kwargs)
     func.delay = delay
     return func
 

@@ -19,10 +19,11 @@
 #
 ##############################################################################
 
-import StringIO
+from StringIO import StringIO
 import traceback
 import logging
 import threading
+import time
 
 import openerp
 from .jobs import OpenERPJob, STARTED, DONE, FAILED
@@ -31,66 +32,67 @@ from .session import Session
 
 _logger = logging.getLogger(__name__)
 
+WAIT_REGISTRY_TIME = 20  # seconds
 
 class Worker(threading.Thread):
 
-    def __init__(self, session, dbname, queue=JobsQueue.instance):
+    def __init__(self, db_name, queue=JobsQueue.instance):
         super(Worker, self).__init__()
-        self.session = session
         self.queue = queue
-        self.dbname = dbname
+        self.db_name = db_name
+        self.registry = openerp.pooler.get_pool(db_name)
 
-    def run_job(self, job):
+    def run_job(self, job_id):
         """ """
         result = None
         failed = False
-        try:
-            with self.session.own_transaction() as subsession:
-                # XXX find a better way to use the subsession in the job
-                # use a local stack of sessions?
-                job.session = subsession
+        db = openerp.sql_db.db_connect(self.db_name)
+        cr = db.cursor()
 
+        with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
+            try:
+                try:
+                    job = self.queue.fetch_job(session, job_id)
+                except:
+                    # TODO handle:
+                    # - no job (recall dequeue to continue to the next)
+                    # - job fetching error
+                    raise
+                job.set_state(STARTED)
                 _logger.debug('Starting job: %s', job)
-                result = job.perform()  # result of the task
+                result = job.perform()
                 job.set_state(DONE, result=result)
-        except:
-            # TODO allow to pass a pipeline of exception
-            # handlers (log errors, send by email, ...)
-            buff = StringIO.StringIO()
-            traceback.print_exc(file=buff)
-            _logger.error(buff.getvalue())
-            job.session = self.session
-            job.set_state(FAILED, exc_info=buff.getvalue())
-
-        return result
+            except:
+                # TODO allow to pass a pipeline of exception
+                # handlers (log errors, send by email, ...)
+                buff = StringIO()
+                traceback.print_exc(file=buff)
+                _logger.error(buff.getvalue())
+                job.set_state(FAILED, exc_info=buff.getvalue())
+                raise
 
     def run(self):
         """ """
-        _logger.info('Start %s', self)
         while True:
-            try:
-                job = self.queue.dequeue(self.session)
-                if job is None:
+            while (self.registry.ready and
+                   'connectors.installed' in self.registry.models):
+                job_id = self.queue.dequeue()
+                try:
+                    self.run_job(job_id)
+                except:
                     continue
-            except Exception as err:
-                _logger.exception(err)
-                # which exceptions and how?
-                continue
 
-            job.set_state(STARTED)
-            self.run_job(job)
-
-        _logger.info('Stop %s', self)
+            _logger.debug('%s waiting for registry for %d seconds',
+                          repr(self),
+                          WAIT_REGISTRY_TIME)
+            time.sleep(WAIT_REGISTRY_TIME)
 
 
-# TODO remove those lines of test
-db = openerp.sql_db.db_connect('openerp_magento7')
-cr = db.cursor()
-registry = openerp.pooler.get_pool('openerp_magento7')
-session = Session(cr, openerp.SUPERUSER_ID, registry)
-try:
-    worker = Worker(session, 'openerp_magento7')
-    # worker.daemon = True
-    worker.start()
-finally:
-    cr.close()
+def start_service():
+    registries = openerp.modules.registry.RegistryManager.registries
+    for db_name, registry in registries.iteritems():
+        worker = Worker(db_name)
+        worker.daemon = True
+        worker.start()
+
+start_service()
