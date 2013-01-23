@@ -5,7 +5,6 @@
 #    Copyright 2012 Camptocamp SA
 #
 #    Queues inspired by Celery and rq-python
-#    Some part of code may be: Copyright 2012 Vincent Driessen
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -27,6 +26,7 @@ import importlib
 import inspect
 from uuid import uuid4
 from cPickle import loads, dumps, UnpicklingError # XXX check errors
+from datetime import datetime
 
 from openerp import SUPERUSER_ID
 from openerp.osv import orm, fields
@@ -54,7 +54,7 @@ class JobStorage(object):
     def cancel(self):
         """ Cancel a job """
 
-    def set_state(self, state, result=None, exc_info=None):
+    def write_state(self, state, result=None, exc_info=None):
         """ Change the state of a job """
 
     def exists(self):
@@ -92,21 +92,12 @@ class OpenERPJobStorage(JobStorage):
                     state=self.job.state,
                     name=self.job.func_string)
 
-        vals['func'] = dumps((self.job.instance,
-                              self.job.func_name,
+        vals['func'] = dumps((self.job.func_name,
                               self.job.args,
                               self.job.kwargs))
 
-        if self.job.exc_info is not None:
-            vals['exc_info'] = self.job.exc_info
-        if self.job.result is not None:
-            vals['result'] = self.job.result
-
-        if self.job.date_started:
-            vals['date_started'] = self.job.date_started.strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT)
-        if self.job.date_done:
-            vals['date_done'] = self.job.date_done.strftime(
+        if self.job.date_enqueued:
+            vals['date_enqueued'] = self.job.date_enqueued.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
         if self.job.only_after:
             vals['only_after'] = self.job.only_after.strftime(
@@ -142,25 +133,36 @@ class OpenERPJobStorage(JobStorage):
 
         func = loads(str(stored.func))
 
-        (self.job._instance,
-         self.job._func_name,
-         self.job._args,
-         self.job._kwargs) = func
+        (self.job.func_name,
+         self.job.args,
+         self.job.kwargs) = func
         self.job.date_enqueued = stored.date_enqueued if stored.date_enqueued else None
         self.job.date_started = stored.date_started if stored.date_started else None
         self.job.date_done = stored.date_done if stored.date_done else None
         self.job.only_after = stored.only_after if stored.only_after else None
-        self.job._state = stored.state
-        self.job._result = loads(str(stored.result)) if stored.result else None
+        self.job.state = stored.state
+        self.job.result = loads(str(stored.result)) if stored.result else None
         self.job.exc_info = stored.exc_info if stored.exc_info else None
 
-    def set_state(self, state, result=None, exc_info=None):
+    def write_state(self):
         """Change the state of the job."""
-        vals = dict(state=state)
-        if result is not None:
-            vals['result'] = dumps(result)
-        if exc_info is not None:
-            vals['exc_info'] = exc_info
+        vals = {'state': self.job.state}
+
+        if self.job.exc_info is not None:
+            vals['exc_info'] = self.job.exc_info
+        if self.job.result is not None:
+            vals['result'] = dumps(self.job.result)
+
+        if self.job.date_started:
+            vals['date_started'] = self.job.date_started.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+        if self.job.date_done:
+            vals['date_done'] = self.job.date_done.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+        if self.job.only_after:
+            vals['only_after'] = self.job.only_after.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+
         self.storage_model.write(self.session.cr,
                                  self.session.uid,
                                  self.openerp_id,
@@ -184,21 +186,21 @@ class Job(object):
         assert isinstance(kwargs, dict), "%s: kwargs are not a dict" % kwargs
         assert not(job_id is None and func is None), "job_id or func is required"
 
-        self._instance = None
-        self._func_name = None
+        self.state = None
+
+        self.func_name = None
         if func:
             if inspect.ismethod(func):
-                self._instance = func.im_self
-                self._func_name = func.__name__
+                raise NotImplementedError('Jobs on instances are not supported')
             elif inspect.isfunction(func):
-                self._func_name = '%s.%s' % (func.__module__, func.__name__)
+                self.func_name = '%s.%s' % (func.__module__, func.__name__)
             else:
-                self._func_name = func  # str
+                self.func_name = func  # str
 
         self._id = job_id
 
-        self._args = args
-        self._kwargs = kwargs
+        self.args = args
+        self.kwargs = kwargs
 
         self.only_after = only_after
         self.priority = priority
@@ -212,7 +214,6 @@ class Job(object):
         self.date_done = None
 
         self.result = None
-        self._state = None
         self.exc_info = None
 
     def __cmp__(self, other):
@@ -234,19 +235,11 @@ class Job(object):
 
     @property
     def id(self):
-        """Job ID for this instance, this is a UUID
+        """Job ID, this is a UUID
         """
         if self._id is None:
             self._id = unicode(uuid4())
         return self._id
-
-    @property
-    def instance(self):
-        return self._instance
-
-    @property
-    def func_name(self):
-        return self._func_name
 
     @property
     def func(self):
@@ -254,25 +247,9 @@ class Job(object):
         if func_name is None:
             return None
 
-        if self.instance:
-            return getattr(self.instance, func_name)
-
         module_name, func_name = func_name.rsplit('.', 1)
         module = importlib.import_module(module_name)
         return getattr(module, func_name)
-
-    @property
-    def args(self):
-        return self._args
-
-    @property
-    def kwargs(self):
-        return self._kwargs
-
-    @property
-    def state(self):
-        """Returns the state of the job."""
-        return self._state
 
     def store(self, session):
         """ Store the Job """
@@ -291,8 +268,21 @@ class Job(object):
 
     def set_state(self, session, state, result=None, exc_info=None):
         """Change the state of the job."""
+        self.state = state
+
+        if state == DONE:
+            self.date_done = datetime.now()
+        if state == STARTED:
+            self.date_started = datetime.now()
+
+        if result is not None:
+            self.result = result
+
+        if exc_info is not None:
+            self.exc_info = exc_info
+
         storage = self.storage_cls(self, session)
-        storage.set_state(state, result=result, exc_info=exc_info)
+        storage.write_state()
 
     def __repr__(self):
         return '<Job %s, priority:%d>' % (self.id, self.priority)
@@ -307,12 +297,10 @@ class JobsStorageModel(orm.Model):
 
     _columns = {
         'uuid': fields.char('UUID', readonly=True, select=True),
-        'queue': fields.char('Queue', readonly=True),
         'name': fields.char('Task', readonly=True),
         'func': fields.text('Pickled Job Function', readonly=True),
         # TODO: use the constants from module .tasks
-        'state': fields.selection([('pending', 'Pending'),
-                                   ('queued', 'Queued'),
+        'state': fields.selection([('queued', 'Queued'),
                                    ('started', 'Started'),
                                    ('failed', 'Failed'),
                                    ('done', 'Done')],

@@ -34,6 +34,7 @@ _logger = logging.getLogger(__name__)
 
 WAIT_REGISTRY_TIME = 20  # seconds
 
+
 class Worker(threading.Thread):
 
     def __init__(self, db_name, queue=JobsQueue.instance):

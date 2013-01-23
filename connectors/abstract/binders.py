@@ -20,16 +20,15 @@
 ##############################################################################
 
 class ExternalIdentifier(dict):
-    """ Most of the time, on an external system,
-    a record is identified by a unique ID. However
-    occasionaly, it is identified by an ID and a second
-    key, or even no ID at all but some keys.
+    """ Most of the time, on an external system, a record is identified
+    by a unique ID. However occasionaly, it is identified by an ID and a
+    second key, or even no ID at all but some keys.
 
-    Instances of this class encapsulate the identifier(s)
-    for a external record.
+    Instances of this class encapsulate the identifier(s) for a external
+    record.
 
-    It must be marshallable to JSON because an `ExternalIdentifier`
-    can be stored in a task.
+    The instance should support pickling because an
+    `ExternalIdentifier` can be stored in a job.
     """
 
 

@@ -5,7 +5,6 @@
 #    Copyright 2012 Guewen Baconnier
 #
 #    Queues inspired by Celery and rq-python
-#    Some part of code may be: Copyright 2012 Vincent Driessen
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -61,6 +60,7 @@ class JobsQueue(object):
                             only_after=only_after)
 
     def enqueue_job(self, session, job):
+        job.state = QUEUED
         job.date_enqueued = datetime.now()
         job.store(session)
 
