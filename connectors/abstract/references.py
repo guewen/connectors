@@ -31,23 +31,24 @@ class ReferenceRegistry(object):
             if reference.match(service, version):
                 return reference
         raise ValueError('No reference found for %s %s' %
-                         service, version)
+                         (service, version))
 
-# it all starts here!
+
 REFERENCES = ReferenceRegistry()
 
-def get_reference(service, version):
-    return REFERENCES.get_reference(service, version)
 
-def register_reference(reference):
-    REFERENCES.register_reference(reference)
+def get_reference(service, version):
+    """ Return the instance of a `Reference` by a
+    `service` and a `version`
+    """
+    return REFERENCES.get_reference(service, version)
 
 
 class Reference(object):
     """ A reference represents an external system
     like Magento, Prestashop, Redmine, ...
 
-    A reference can hold a version.
+    A reference can hold a version and a parent.
 
     The references contains all the classes they are able to use
     (processors, binders, synchronizers) and return the appropriate
@@ -61,7 +62,9 @@ class Reference(object):
         magento1700 = Reference(parent=magento, version='1.7')
 
     """
-    def __init__(self, service=None, version=None, parent=None):
+
+    def __init__(self, service=None, version=None, parent=None,
+                 registry=REFERENCES):
         if service is None and parent is None:
             raise ValueError('A service or a parent service is expected')
         self._service = service
@@ -70,6 +73,7 @@ class Reference(object):
         self._processors = set()
         self._binder = None
         self._synchronizers = set()
+        registry.register_reference(self)
 
     def match(self, service, version):
         return (self.service == service and
@@ -80,12 +84,14 @@ class Reference(object):
         return self._service or self.parent.service
 
     def __str__(self):
-        return repr(self)
+        if self.version:
+            return 'Reference(\'%s\', \'%s\')' % (self.service, self.version)
+        return 'Reference(\'%s\')>' % self.service
 
     def __repr__(self):
         if self.version:
-            return 'Reference(\'%s\', \'%s\')' % (self.service, self.version)
-        return 'Reference(\'%s\')' % self.service
+            return '<Reference \'%s\', \'%s\'>' % (self.service, self.version)
+        return '<Reference \'%s\'>' % self.service
 
     def get_synchronizer(self, synchro_type, model):
         synchronizer = None

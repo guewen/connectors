@@ -19,14 +19,14 @@
 #
 ##############################################################################
 
-from ..abstract.references import register_reference, Reference
+from ..abstract.references import Reference
 
 
 Magento = Reference('magento')
-register_reference(Magento)
 
 Magento1600 = Reference(parent=Magento, version='1.6')
-register_reference(Magento1600)
 
 Magento1700 = Reference(parent=Magento, version='1.7')
-register_reference(Magento1700)
+
+
+import pdb; pdb.set_trace()
