@@ -29,6 +29,7 @@ import openerp
 from .jobs import STARTED, DONE, FAILED
 from .queue import JobsQueue
 from .session import Session
+from .exceptions import NoSuchJobError, NotReadableJobError
 
 _logger = logging.getLogger(__name__)
 
@@ -45,8 +46,6 @@ class Worker(threading.Thread):
 
     def run_job(self, job):
         """ """
-        result = None
-        failed = False
         db = openerp.sql_db.db_connect(self.db_name)
         cr = db.cursor()
 
@@ -54,10 +53,11 @@ class Worker(threading.Thread):
             try:
                 try:
                     job.refresh(session)
-                except:
-                    # TODO handle:
-                    # - no job: do nothing
-                    # - job fetching error: put job in failed
+                except NoSuchJobError:
+                    return
+                except NotReadableJobError:
+                    # will be put in failed by the enclosing try/except
+                    _logger.debug('Cannot read: %s', job)
                     raise
                 job.set_state(session, STARTED)
                 _logger.debug('Starting: %s', job)

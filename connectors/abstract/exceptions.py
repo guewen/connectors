@@ -24,9 +24,25 @@ class ConnectorException(RuntimeError):
     """ Base Exception for the connectors """
 
 
-class FailedTask(ConnectorException):
-    """ Raised when a task fails"""
-
-
 class InvalidDataError(ConnectorException):
-    """ Raised when some data to import or export is invalid """
+    """ Data Invalid """
+
+
+class JobError(ConnectorException):
+    """ A job had an error """
+
+
+class NoSuchJobError(JobError):
+    """ The job does not exist. """
+
+
+class NotReadableJobError(JobError):
+    """ The job cannot be read from the storage. """
+
+
+class FailedJobError(JobError):
+    """ A job had an error having to be resolved. """
+
+
+class RetryableJobError(JobError):
+    """ A job had an error but can be retried. """

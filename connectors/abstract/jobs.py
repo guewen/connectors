@@ -31,6 +31,7 @@ from datetime import datetime
 from openerp import SUPERUSER_ID
 from openerp.osv import orm, fields
 from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT
+from .exceptions import NoSuchJobError, NotReadableJobError
 
 QUEUED = 'queued'
 DONE = 'done'
@@ -126,6 +127,9 @@ class OpenERPJobStorage(JobStorage):
 
     def refresh(self):
         """ read again the metadata from the storage """
+        if self.openerp_id is None:
+            raise NoSuchJobError(
+                    '%s does no longer exists in the storage.' % self.job)
         stored = self.storage_model.browse(self.session.cr,
                                            self.session.uid,
                                            self.openerp_id,
@@ -259,7 +263,12 @@ class Job(object):
     def refresh(self, session):
         """ read again the metadata from the storage """
         storage = self.storage_cls(self, session)
-        storage.refresh()
+        try:
+            storage.refresh()
+        except NoSuchJobError:
+            raise
+        except Exception as err:
+            raise NotReadableJobError(err)
 
     def cancel(self, session):
         """ Cancel a job """
