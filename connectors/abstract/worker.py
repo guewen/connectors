@@ -29,7 +29,10 @@ import openerp
 from .jobs import Job, STARTED, DONE, FAILED
 from .queue import JobsQueue
 from .session import Session
-from .exceptions import NoSuchJobError, NotReadableJobError
+from .exceptions import (NoSuchJobError,
+                         NotReadableJobError,
+                         FailedJobError,
+                         RetryableJobError)
 
 _logger = logging.getLogger(__name__)
 
@@ -65,13 +68,22 @@ class Worker(threading.Thread):
                 result = job.perform(session)
                 _logger.debug('Done: %s', job)
                 job.set_state(session, DONE, result=result)
-            except:
+            except RetryableJobError:
+                # TODO: implement the retryable errrors:
+                # retryable should be requeued with a only_after date
+                raise NotImplementedError('RetryableJobError to implement')
+            except FailedJobError, Exception:  # XXX Exception?
                 # TODO allow to pass a pipeline of exception
                 # handlers (log errors, send by email, ...)
                 buff = StringIO()
                 traceback.print_exc(file=buff)
                 _logger.error(buff.getvalue())
-                job.set_state(session, FAILED, exc_info=buff.getvalue())
+                # the session cursor may be in an bad state
+                error_session = Session(
+                        db.cursor(), openerp.SUPERUSER_ID, self.registry)
+                with error_session:
+                    job.set_state(error_session, FAILED,
+                                  exc_info=buff.getvalue())
                 raise
 
     def run(self):
