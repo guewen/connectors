@@ -97,6 +97,10 @@ class OpenERPJobStorage(JobStorage):
                               self.job.args,
                               self.job.kwargs))
 
+        if self.job.date_created:
+            vals['date_created'] = self.job.date_created.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+
         if self.job.date_enqueued:
             vals['date_enqueued'] = self.job.date_enqueued.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
@@ -104,11 +108,19 @@ class OpenERPJobStorage(JobStorage):
             vals['only_after'] = self.job.only_after.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
 
-        self.storage_model.create(
-                self.session.cr,
-                self.session.uid,
-                vals,
-                self.session.context)
+        if self.openerp_id:
+            self.storage_model.write(
+                    self.session.cr,
+                    self.session.uid,
+                    self.openerp_id,
+                    vals,
+                    self.session.context)
+        else:
+            self.storage_model.create(
+                    self.session.cr,
+                    self.session.uid,
+                    vals,
+                    self.session.context)
         self.session.commit()
 
     @property
@@ -116,7 +128,7 @@ class OpenERPJobStorage(JobStorage):
         if self._openerp_id is None:
             job_ids = self.storage_model.search(
                     self.session.cr,
-                    SUPERUSER_ID,  # XXX user_root
+                    SUPERUSER_ID,
                     [('uuid', '=', self.job.id)],
                     context=self.session.context,
                     limit=1)
@@ -140,10 +152,22 @@ class OpenERPJobStorage(JobStorage):
         (self.job.func_name,
          self.job.args,
          self.job.kwargs) = func
-        self.job.date_enqueued = stored.date_enqueued if stored.date_enqueued else None
-        self.job.date_started = stored.date_started if stored.date_started else None
-        self.job.date_done = stored.date_done if stored.date_done else None
-        self.job.only_after = stored.only_after if stored.only_after else None
+        if stored.date_enqueued:
+            self.job.date_enqueued = datetime.strptime(
+                    stored.date_enqueued, DEFAULT_SERVER_DATETIME_FORMAT)
+
+        if stored.date_started:
+            self.job.date_started = datetime.strptime(
+                    stored.date_started, DEFAULT_SERVER_DATETIME_FORMAT)
+
+        if stored.date_done:
+            self.job.date_done = datetime.strptime(
+                    stored.date_done, DEFAULT_SERVER_DATETIME_FORMAT)
+
+        if stored.only_after:
+            self.job.only_after = datetime.strptime(
+                    stored.only_after, DEFAULT_SERVER_DATETIME_FORMAT)
+
         self.job.state = stored.state
         self.job.result = loads(str(stored.result)) if stored.result else None
         self.job.exc_info = stored.exc_info if stored.exc_info else None
@@ -213,6 +237,7 @@ class Job(object):
 
         self.storage_cls = storage_cls
 
+        self.date_created = datetime.now()
         self.date_enqueued = None
         self.date_started = None
         self.date_done = None
@@ -317,6 +342,7 @@ class JobsStorageModel(orm.Model):
                                   readonly=True),
         'exc_info': fields.text('Traceback', readonly=True),
         'result': fields.text('Result', readonly=True),
+        'date_created': fields.datetime('Created Date', readonly=True),
         'date_started': fields.datetime('Start Date', readonly=True),
         'date_enqueued': fields.datetime('Enqueue Time', readonly=True),
         'date_done': fields.datetime('Date Done', readonly=True),

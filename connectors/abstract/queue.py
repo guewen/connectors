@@ -30,17 +30,6 @@ from .jobs import Job, QUEUED, DONE, FAILED
 _logger = logging.getLogger(__name__)
 
 
-def on_start_put_in_queue():
-    """ Assign all pending jobs to the queue
-
-    Must be called when OpenERP starts.
-
-    Warning: if OpenERP has many processes with Gunicorn only 1 process must
-    take the jobs.
-    """
-    # TODO
-
-
 class JobsQueue(object):
     """ Implementation """
 

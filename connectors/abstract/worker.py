@@ -26,7 +26,7 @@ import threading
 import time
 
 import openerp
-from .jobs import STARTED, DONE, FAILED
+from .jobs import Job, STARTED, DONE, FAILED
 from .queue import JobsQueue
 from .session import Session
 from .exceptions import NoSuchJobError, NotReadableJobError
@@ -43,6 +43,7 @@ class Worker(threading.Thread):
         self.queue = queue
         self.db_name = db_name
         self.registry = openerp.pooler.get_pool(db_name)
+        self.started = False
 
     def run_job(self, job):
         """ """
@@ -78,6 +79,11 @@ class Worker(threading.Thread):
         while True:
             while (self.registry.ready and
                    'connectors.installed' in self.registry.models):
+                if not self.started:
+                    # TODO: ensure that in multiprocess, the jobs are
+                    # loaded in one queue only
+                    self.on_start_put_in_queue()
+                    self.started = True
                 job = self.queue.dequeue()
                 try:
                     self.run_job(job)
@@ -88,6 +94,28 @@ class Worker(threading.Thread):
                           self,
                           WAIT_REGISTRY_TIME)
             time.sleep(WAIT_REGISTRY_TIME)
+
+    def on_start_put_in_queue(self):
+        """ Assign all pending jobs to the queue
+
+        Must be called when OpenERP starts.
+
+        Warning: if OpenERP has many processes with Gunicorn only 1 process must
+        take the jobs.
+        """
+        db = openerp.sql_db.db_connect(self.db_name)
+        cr = db.cursor()
+        with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
+            cr.execute("SELECT uuid FROM jobs_storage "
+                       "WHERE state = 'queued' "
+                       "FOR UPDATE ")
+            uuids = cr.fetchall()
+            if uuids:
+                _logger.debug('Enqueue %d jobs on start of the worker.', len(uuids))
+                for uuid in [uuid for uuid, in uuids]:
+                    job = Job(job_id=uuid)
+                    job.refresh(session)
+                    JobsQueue.instance.enqueue_job(session, job)
 
 
 def start_service():
