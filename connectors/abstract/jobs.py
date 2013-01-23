@@ -52,12 +52,6 @@ class JobStorage(object):
     def refresh(self):
         """ Read the job's data from the storage """
 
-    def cancel(self):
-        """ Cancel a job """
-
-    def write_state(self, state, result=None, exc_info=None):
-        """ Change the state of a job """
-
     def exists(self):
         """Returns if a job still exists in the storage."""
 
@@ -78,14 +72,7 @@ class OpenERPJobStorage(JobStorage):
 
     def exists(self):
         """Returns if a job still exists in the storage."""
-        jobs = self.storage_model.search(self.session.cr,
-                                         self.session.uid,
-                                         [('uuid', '=', self.job.id)],
-                                         context=self.session.context,
-                                         limit=1)
-        if jobs:
-            return True
-        return False
+        return bool(self.openerp_id)
 
     def store(self):
         """ Store the Job """
@@ -100,13 +87,24 @@ class OpenERPJobStorage(JobStorage):
         if self.job.date_created:
             vals['date_created'] = self.job.date_created.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
-
         if self.job.date_enqueued:
             vals['date_enqueued'] = self.job.date_enqueued.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+        if self.job.date_started:
+            vals['date_started'] = self.job.date_started.strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT)
+        if self.job.date_done:
+            vals['date_done'] = self.job.date_done.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
         if self.job.only_after:
             vals['only_after'] = self.job.only_after.strftime(
                     DEFAULT_SERVER_DATETIME_FORMAT)
+
+        if self.job.exc_info is not None:
+            vals['exc_info'] = self.job.exc_info
+
+        if self.job.result is not None:
+            vals['result'] = dumps(self.job.result)
 
         if self.openerp_id:
             self.storage_model.write(
@@ -171,32 +169,6 @@ class OpenERPJobStorage(JobStorage):
         self.job.state = stored.state
         self.job.result = loads(str(stored.result)) if stored.result else None
         self.job.exc_info = stored.exc_info if stored.exc_info else None
-
-    def write_state(self):
-        """Change the state of the job."""
-        vals = {'state': self.job.state}
-
-        if self.job.exc_info is not None:
-            vals['exc_info'] = self.job.exc_info
-        if self.job.result is not None:
-            vals['result'] = dumps(self.job.result)
-
-        if self.job.date_started:
-            vals['date_started'] = self.job.date_started.strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT)
-        if self.job.date_done:
-            vals['date_done'] = self.job.date_done.strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT)
-        if self.job.only_after:
-            vals['only_after'] = self.job.only_after.strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT)
-
-        self.storage_model.write(self.session.cr,
-                                 self.session.uid,
-                                 self.openerp_id,
-                                 vals,
-                                 context=self.session.context)
-        self.session.commit()
 
 
 class Job(object):
@@ -280,14 +252,14 @@ class Job(object):
         module = importlib.import_module(module_name)
         return getattr(module, func_name)
 
-    def store(self, session):
+    def store(self, *args, **kwargs):
         """ Store the Job """
-        storage = self.storage_cls(self, session)
+        storage = self.storage_cls(self, *args, **kwargs)
         storage.store()
 
-    def refresh(self, session):
+    def refresh(self, *args, **kwargs):
         """ read again the metadata from the storage """
-        storage = self.storage_cls(self, session)
+        storage = self.storage_cls(self, *args, **kwargs)
         try:
             storage.refresh()
         except NoSuchJobError:
@@ -295,13 +267,16 @@ class Job(object):
         except Exception as err:
             raise NotReadableJobError(err)
 
-    def cancel(self, session):
-        """ Cancel a job """
-        storage = self.storage_cls(self, session)
-        storage.cancel()
+    def exists(self, *args, **kwargs):
+        """ Check if a job still exists in the storage """
+        storage = self.storage_cls(self, *args, **kwargs)
+        return storage.exists()
 
     def set_state(self, session, state, result=None, exc_info=None):
         """Change the state of the job."""
+        if self.exists(session):
+            self.refresh(session)
+
         self.state = state
 
         if state == DONE:
@@ -315,8 +290,7 @@ class Job(object):
         if exc_info is not None:
             self.exc_info = exc_info
 
-        storage = self.storage_cls(self, session)
-        storage.write_state()
+        self.store(session)
 
     def __repr__(self):
         return '<Job %s, priority:%d>' % (self.id, self.priority)
