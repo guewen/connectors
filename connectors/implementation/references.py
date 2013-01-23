@@ -27,6 +27,3 @@ Magento = Reference('magento')
 Magento1600 = Reference(parent=Magento, version='1.6')
 
 Magento1700 = Reference(parent=Magento, version='1.7')
-
-
-import pdb; pdb.set_trace()
