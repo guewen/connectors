@@ -26,7 +26,7 @@ import threading
 import time
 
 import openerp
-from .jobs import OpenERPJob, STARTED, DONE, FAILED
+from .jobs import STARTED, DONE, FAILED
 from .queue import JobsQueue
 from .session import Session
 
@@ -42,7 +42,7 @@ class Worker(threading.Thread):
         self.db_name = db_name
         self.registry = openerp.pooler.get_pool(db_name)
 
-    def run_job(self, job_id):
+    def run_job(self, job):
         """ """
         result = None
         failed = False
@@ -52,23 +52,24 @@ class Worker(threading.Thread):
         with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
             try:
                 try:
-                    job = self.queue.fetch_job(session, job_id)
+                    job.refresh(session)
                 except:
                     # TODO handle:
-                    # - no job (recall dequeue to continue to the next)
-                    # - job fetching error
+                    # - no job: do nothing
+                    # - job fetching error: put job in failed
                     raise
-                job.set_state(STARTED)
-                _logger.debug('Starting job: %s', job)
-                result = job.perform()
-                job.set_state(DONE, result=result)
+                job.set_state(session, STARTED)
+                _logger.debug('Starting: %s', job)
+                result = job.perform(session)
+                _logger.debug('Done: %s', job)
+                job.set_state(session, DONE, result=result)
             except:
                 # TODO allow to pass a pipeline of exception
                 # handlers (log errors, send by email, ...)
                 buff = StringIO()
                 traceback.print_exc(file=buff)
                 _logger.error(buff.getvalue())
-                job.set_state(FAILED, exc_info=buff.getvalue())
+                job.set_state(session, FAILED, exc_info=buff.getvalue())
                 raise
 
     def run(self):
@@ -76,14 +77,14 @@ class Worker(threading.Thread):
         while True:
             while (self.registry.ready and
                    'connectors.installed' in self.registry.models):
-                job_id = self.queue.dequeue()
+                job = self.queue.dequeue()
                 try:
-                    self.run_job(job_id)
+                    self.run_job(job)
                 except:
                     continue
 
             _logger.debug('%s waiting for registry for %d seconds',
-                          repr(self),
+                          self,
                           WAIT_REGISTRY_TIME)
             time.sleep(WAIT_REGISTRY_TIME)
 

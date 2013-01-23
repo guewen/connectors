@@ -22,19 +22,17 @@
 #
 ##############################################################################
 import logging
-import random
-from Queue import PriorityQueue, Empty
-from copy import copy
+from Queue import PriorityQueue
 from datetime import datetime
 
 from .session import Session
-from .jobs import OpenERPJob, STARTED , QUEUED, DONE, FAILED
+from .jobs import Job, QUEUED, DONE, FAILED
 
 _logger = logging.getLogger(__name__)
 
 
-def on_start_put_in_queues():
-    """ Assign all pending jobs to queues
+def on_start_put_in_queue():
+    """ Assign all pending jobs to the queue
 
     Must be called when OpenERP starts.
 
@@ -47,7 +45,7 @@ def on_start_put_in_queues():
 class JobsQueue(object):
     """ Implementation """
 
-    job_cls = OpenERPJob
+    job_cls = Job
     instance = None
 
     def __init__(self):
@@ -62,31 +60,24 @@ class JobsQueue(object):
                             kwargs=kwargs, priority=priority,
                             only_after=only_after)
 
-    def enqueue_job(self, job):
+    def enqueue_job(self, session, job):
         job.date_enqueued = datetime.now()
-        job.store()
+        job.store(session)
 
-        self._queue.put_nowait(job.id)
-        _logger.debug('Job %s enqueued', job)
+        self._queue.put_nowait(job)
+        _logger.debug('%s enqueued', job)
 
     def enqueue(self, session, func, args=None, kwargs=None,
                 priority=None, only_after=None):
-        job = self.job_cls(session, func=func, args=args, kwargs=kwargs,
+        job = self.job_cls(func=func, args=args, kwargs=kwargs,
                            priority=priority, only_after=only_after)
-        self.enqueue_job(job)
+        self.enqueue_job(session, job)
 
     def dequeue(self):
         """ Take the first job from the queue and return it """
-        # try:
-        #     job_id = self._queue.get_nowait()
-        # except Empty as err:
-        #     return None
-        job_id = self._queue.get()
-        _logger.debug('Fetched job %s', job_id)
-        return job_id
-
-    def fetch_job(self, session, job_id):
-        return self.job_cls.fetch(session, job_id)
+        job = self._queue.get()
+        _logger.debug('Fetched job %s', job)
+        return job
 
 
 JobsQueue.instance = JobsQueue()
