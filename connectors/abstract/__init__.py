@@ -9,9 +9,5 @@ from .binders import *
 from .synchronizers import *
 from .session import *
 from .jobs import *
-from worker import *
-
-
-
-# TODO
-# implement adapters
+from .worker import *
+from .adapters import *
