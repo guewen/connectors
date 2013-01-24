@@ -106,6 +106,8 @@ class OpenERPJobStorage(JobStorage):
         if self.job.result is not None:
             vals['result'] = dumps(self.job.result)
 
+        vals['user_id'] = self.job.user_id
+
         if self.openerp_id:
             self.storage_model.write(
                     self.session.cr,
@@ -169,6 +171,7 @@ class OpenERPJobStorage(JobStorage):
         self.job.state = stored.state
         self.job.result = loads(str(stored.result)) if stored.result else None
         self.job.exc_info = stored.exc_info if stored.exc_info else None
+        self.job.user_id = stored.user_id
 
 
 class Job(object):
@@ -217,12 +220,15 @@ class Job(object):
         self.result = None
         self.exc_info = None
 
+        self.user_id = None
+
     def __cmp__(self, other):
         return cmp(self.priority, other.priority)
 
     def perform(self, session):
         """ Execute a job """
-        self.result = self.func(session, *self.args, **self.kwargs)
+        with session.change_user(self.user_id):
+            self.result = self.func(session, *self.args, **self.kwargs)
         return self.result
 
     @property
@@ -305,6 +311,7 @@ class JobsStorageModel(orm.Model):
 
     _columns = {
         'uuid': fields.char('UUID', readonly=True, select=True),
+        'user_id': fields.integer('User'),
         'name': fields.char('Task', readonly=True),
         'func': fields.text('Pickled Job Function', readonly=True),
         # TODO: use the constants from module .tasks

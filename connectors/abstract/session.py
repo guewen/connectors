@@ -52,6 +52,16 @@ class Session(object):
         with subsession as sub:
             yield sub
 
+    @contextmanager
+    def change_user(self, uid):
+        """ Temporarily change the user's session and restablish the
+        normal user at closing,
+        """
+        current_uid = self.uid
+        self.uid = uid
+        yield self
+        self.uid = current_uid
+
     def commit(self):
         self.cr.commit()
 

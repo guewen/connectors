@@ -51,6 +51,7 @@ class JobsQueue(object):
     def enqueue_job(self, session, job):
         job.state = QUEUED
         job.date_enqueued = datetime.now()
+        job.user_id = session.uid
         job.store(session)
 
         self._queue.put_nowait(job)
