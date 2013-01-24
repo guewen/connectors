@@ -123,8 +123,10 @@ class Reference(object):
                 elif issubclass(cls, Processor):
                     self.register_processor(cls, **opts)
                 else:
-                    raise TypeError('%s is not a valid type for %s' %
-                                    (cls, self))
+                    raise TypeError(
+                            '%s is not a valid type for %s.\n'
+                            'Allowed types are subclasses of Binder, Synchronizer, '
+                            'Processor' % (cls, self))
                 return cls
             return wrapped_cls
 
