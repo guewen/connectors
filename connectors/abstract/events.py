@@ -113,9 +113,9 @@ class Event(object):
                 # work
 
         """
-        def with_subscribe(model_names=None):
+        def with_subscribe(**opts):
             def wrapped_func(func):
-                self.subscribe(func, model_names=model_names)
+                self.subscribe(func, **opts)
                 return func
             return wrapped_func
 
