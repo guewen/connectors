@@ -174,7 +174,7 @@ class Reference(object):
                                  'with model: %s' % (self, model))
         return binder
 
-    def register_binder(self, binder, **kwargs):
+    def register_binder(self, binder):
         self._binder = binder
 
     def register_synchronizer(self, synchronizer):
