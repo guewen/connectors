@@ -119,7 +119,7 @@ class Worker(threading.Thread):
         cr = db.cursor()
         with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
             cr.execute("SELECT uuid FROM jobs_storage "
-                       "WHERE state = 'queued' "
+                       "WHERE state in ('queued', 'started') "
                        "FOR UPDATE ")
             uuids = cr.fetchall()
             if uuids:
