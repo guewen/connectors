@@ -35,6 +35,7 @@ class SaleOrderBinder(MagentoBinder):
     model_name = 'sale.order'
 
 
+@Magento
 class ResPartnerBinder(MagentoBinder):
     model_name = 'res.partner'
 
