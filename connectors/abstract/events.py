@@ -19,6 +19,8 @@
 #
 ##############################################################################
 
+from collections import Callable
+
 __all__ = [
     'on_record_write',
     'on_record_create',
@@ -91,9 +93,35 @@ class Event(object):
             for handler in self._handlers.get(name, ()):
                 handler(*args, **kwargs)
 
-    def __call__(self, func):
-        # TODO : implement decorator
-        return func
+    def __call__(self, *args, **kwargs):
+        """ Event decorator
+
+        For an event `on_event` declared like this::
+
+            on_event = Event()
+
+        A consumer can be subscribed using::
+
+            @on_event
+            def do_things(arg1, arg2):
+                # work
+
+        And for consumers specific to models::
+
+            @on_event(model_names=['product.product', 'res.partner'])
+            def do_things(arg1, arg2):
+                # work
+
+        """
+        def with_subscribe(model_names=None):
+            def wrapped_func(func):
+                self.subscribe(func, model_names=model_names)
+                return func
+            return wrapped_func
+
+        if len(args) == 1 and isinstance(args[0], Callable):
+            return with_subscribe(**kwargs)(*args)
+        return with_subscribe(**kwargs)
 
 
 on_record_write = Event()

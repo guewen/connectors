@@ -36,31 +36,28 @@ from .events import (on_record_create,
 _logger = logging.getLogger(__name__)
 
 
+@on_record_create
 def log_created(session, record_id):
     """ here belongs the task(s) creation """
     _logger.debug("A %s with id %d has been created", session.model_name, record_id)
 
-on_record_create.subscribe(log_created)
 
-
+@on_record_write
 def log_written(session, record_id, fields):
     """ here belongs the task(s) creation """
     _logger.debug("A %s with id %d has been updated on fields %s",
             session.model_name, record_id, fields)
 
-on_record_write.subscribe(log_written)
 
-
+@on_record_unlink
 def log_unlinked(session, record_id):
     """ here belongs the task(s) creation """
     _logger.debug("A %s with id %d has been deleted", session.model_name, record_id)
 
-on_record_unlink.subscribe(log_unlinked)
 
 
+@on_workflow_signal
 def log_workflow_signal(session, record_id, signal):
     """ here belongs the task(s) creation """
     _logger.debug("Workflow signal %s received on %s "
                   "with id %d", signal, session.model_name, record_id)
-
-on_workflow_signal.subscribe(log_workflow_signal)
