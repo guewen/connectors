@@ -5,7 +5,6 @@
 #    Copyright 2012 Guewen Baconnier
 #
 #    Queues inspired by Celery and rq-python
-#    Some part of code may be: Copyright 2012 Vincent Driessen
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -22,82 +21,50 @@
 #
 ##############################################################################
 import logging
-import random
-from Queue import PriorityQueue, Empty
-from copy import copy
+from Queue import PriorityQueue
 from datetime import datetime
 
 from .session import Session
-from .jobs import OpenERPJob, STARTED , QUEUED, DONE, FAILED
+from .jobs import Job, QUEUED, DONE, FAILED
 
 _logger = logging.getLogger(__name__)
-
-
-def on_start_put_in_queues():
-    """ Assign all pending jobs to queues
-
-    Must be called when OpenERP starts.
-
-    Warning: if OpenERP has many processes with Gunicorn only 1 process must
-    take the jobs.
-    """
-    # TODO
 
 
 class JobsQueue(object):
     """ Implementation """
 
-    job_cls = OpenERPJob
+    job_cls = Job
     instance = None
 
     def __init__(self):
         self._queue = PriorityQueue()
 
-    def enqueue(self, session, func, *args, **kwargs):
+    def enqueue_resolve_args(self, session, func, *args, **kwargs):
         """Create a Job and enqueue it in the queue"""
         priority = kwargs.pop('priority', None)
         only_after = kwargs.pop('only_after', None)
 
-        return self.enqueue_args(session, func, args=args,
-                                 kwargs=kwargs, priority=priority,
-                                 only_after=only_after)
+        return self.enqueue(session, func, args=args,
+                            kwargs=kwargs, priority=priority,
+                            only_after=only_after)
 
-    def enqueue_job(self, job):
+    def enqueue_job(self, session, job):
+        job.state = QUEUED
         job.date_enqueued = datetime.now()
-        job.store()
+        job.store(session)
 
         self._queue.put_nowait(job)
-        _logger.debug('Job %s enqueued', job)
+        _logger.debug('%s enqueued', job)
 
-    def enqueue_args(self, session, func, args=None, kwargs=None,
-                     only_after=None, priority=None):
-        job = self.job_cls(session, func=func, args=args, kwargs=kwargs,
+    def enqueue(self, session, func, args=None, kwargs=None,
+                priority=None, only_after=None):
+        job = self.job_cls(func=func, args=args, kwargs=kwargs,
                            priority=priority, only_after=only_after)
-        self.enqueue_job(job)
+        self.enqueue_job(session, job)
 
-    def dequeue(self, session):
+    def dequeue(self):
         """ Take the first job from the queue and return it """
-        # try:
-        #     job_id = self._queue.get_nowait()
-        # except Empty as err:
-        #     return None
-        job_id = self._queue.get()
-        try:
-            # XXX tests
-            import openerp
-            db = openerp.sql_db.db_connect('openerp_magento7')
-            cr = db.cursor()
-            registry = openerp.pooler.get_pool('openerp_magento7')
-            session = Session(cr, openerp.SUPERUSER_ID, registry)
-            try:
-                job = self.job_cls.fetch(session, job_id)
-            finally:
-                cr.close()
-        except:
-            # TODO handle:
-            # - no job (recall dequeue to continue to the next)
-            # - job fetching error
-            raise
+        job = self._queue.get()
         _logger.debug('Fetched job %s', job)
         return job
 

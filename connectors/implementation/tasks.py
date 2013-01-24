@@ -118,18 +118,18 @@ class res_users(orm.Model):
                           context=context)
 
         # enqueue
-        JobsQueue.instance.enqueue_args(session, test1, args=('a', 1))
-        JobsQueue.instance.enqueue_args(session, test1, args=('a', 1))
-        JobsQueue.instance.enqueue_args(session, test1, args=('b', 1))
-        JobsQueue.instance.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
-        JobsQueue.instance.enqueue_args(session, test2, args=('b',), kwargs={'b': 2})
+        JobsQueue.instance.enqueue(session, test1, args=('a', 1))
+        JobsQueue.instance.enqueue(session, test1, args=('a', 1))
+        JobsQueue.instance.enqueue(session, test1, args=('b', 1))
+        JobsQueue.instance.enqueue(session, test2, args=('b',), kwargs={'b': 2})
+        JobsQueue.instance.enqueue(session, test2, args=('b',), kwargs={'b': 2})
 
-        # # syntactic sugar
+        # syntactic sugar
         test1.delay(session, 'a', 1, priority=20)
         test1.delay(session, 'a', 1)
         test2.delay(session, 'a', 2, priority=2)
         test2.delay(session, 'b', 1)
-        # # direct, no job
+        # direct, no job
         test2(session, 'b', 10)
         # work
         return True

@@ -49,15 +49,8 @@ class Session(object):
                              new_pool,
                              self.model_name,
                              context=self.context)
-        try:
-            yield subsession
-        except:
-            subsession.rollback()
-            raise
-        else:
-            subsession.commit()
-        finally:
-            subsession.close()
+        with subsession as sub:
+            yield sub
 
     def commit(self):
         self.cr.commit()
@@ -67,3 +60,14 @@ class Session(object):
 
     def close(self):
         self.cr.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        if tb is None:
+            self.commit()
+        else:
+            self.rollback()
+        self.close()
+

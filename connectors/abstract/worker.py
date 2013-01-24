@@ -19,78 +19,122 @@
 #
 ##############################################################################
 
-import StringIO
+from StringIO import StringIO
 import traceback
 import logging
 import threading
+import time
 
 import openerp
-from .jobs import OpenERPJob, STARTED, DONE, FAILED
+from .jobs import Job, STARTED, DONE, FAILED
 from .queue import JobsQueue
 from .session import Session
+from .exceptions import (NoSuchJobError,
+                         NotReadableJobError,
+                         FailedJobError,
+                         RetryableJobError)
 
 _logger = logging.getLogger(__name__)
+
+WAIT_REGISTRY_TIME = 20  # seconds
 
 
 class Worker(threading.Thread):
 
-    def __init__(self, session, dbname, queue=JobsQueue.instance):
+    def __init__(self, db_name, queue=JobsQueue.instance):
         super(Worker, self).__init__()
-        self.session = session
         self.queue = queue
-        self.dbname = dbname
+        self.db_name = db_name
+        self.registry = openerp.pooler.get_pool(db_name)
+        self.started = False
 
     def run_job(self, job):
         """ """
-        result = None
-        failed = False
-        try:
-            with self.session.own_transaction() as subsession:
-                # XXX find a better way to use the subsession in the job
-                # use a local stack of sessions?
-                job.session = subsession
+        db = openerp.sql_db.db_connect(self.db_name)
+        cr = db.cursor()
 
-                _logger.debug('Starting job: %s', job)
-                result = job.perform()  # result of the task
-                job.set_state(DONE, result=result)
-        except:
-            # TODO allow to pass a pipeline of exception
-            # handlers (log errors, send by email, ...)
-            buff = StringIO.StringIO()
-            traceback.print_exc(file=buff)
-            _logger.error(buff.getvalue())
-            job.session = self.session
-            job.set_state(FAILED, exc_info=buff.getvalue())
-
-        return result
+        with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
+            try:
+                try:
+                    job.refresh(session)
+                except NoSuchJobError:
+                    return
+                except NotReadableJobError:
+                    # will be put in failed by the enclosing try/except
+                    _logger.debug('Cannot read: %s', job)
+                    raise
+                job.set_state(session, STARTED)
+                _logger.debug('Starting: %s', job)
+                result = job.perform(session)
+                _logger.debug('Done: %s', job)
+                job.set_state(session, DONE, result=result)
+            except RetryableJobError:
+                # TODO: implement the retryable errrors:
+                # retryable should be requeued with a only_after date
+                raise NotImplementedError('RetryableJobError to implement')
+            except FailedJobError, Exception:  # XXX Exception?
+                # TODO allow to pass a pipeline of exception
+                # handlers (log errors, send by email, ...)
+                buff = StringIO()
+                traceback.print_exc(file=buff)
+                _logger.error(buff.getvalue())
+                # the session cursor may be in an bad state
+                error_session = Session(
+                        db.cursor(), openerp.SUPERUSER_ID, self.registry)
+                with error_session:
+                    job.set_state(error_session, FAILED,
+                                  exc_info=buff.getvalue())
+                raise
 
     def run(self):
         """ """
-        _logger.info('Start %s', self)
         while True:
-            try:
-                job = self.queue.dequeue(self.session)
-                if job is None:
+            while (self.registry.ready and
+                   'connectors.installed' in self.registry.models):
+                if not self.started:
+                    # TODO: ensure that in multiprocess, the jobs are
+                    # loaded in one queue only
+                    self.on_start_put_in_queue()
+                    self.started = True
+                job = self.queue.dequeue()
+                try:
+                    self.run_job(job)
+                except:
                     continue
-            except Exception as err:
-                _logger.exception(err)
-                # which exceptions and how?
-                continue
 
-            job.set_state(STARTED)
-            self.run_job(job)
+            _logger.debug('%s waiting for registry for %d seconds',
+                          self,
+                          WAIT_REGISTRY_TIME)
+            time.sleep(WAIT_REGISTRY_TIME)
 
-        _logger.info('Stop %s', self)
+    def on_start_put_in_queue(self):
+        """ Assign all pending jobs to the queue
+
+        Must be called when OpenERP starts.
+
+        Warning: if OpenERP has many processes with Gunicorn only 1 process must
+        take the jobs.
+        """
+        db = openerp.sql_db.db_connect(self.db_name)
+        cr = db.cursor()
+        with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
+            cr.execute("SELECT uuid FROM jobs_storage "
+                       "WHERE state = 'queued' "
+                       "FOR UPDATE ")
+            uuids = cr.fetchall()
+            if uuids:
+                _logger.debug('Enqueue %d jobs on start of the worker.', len(uuids))
+                for uuid in [uuid for uuid, in uuids]:
+                    job = Job(job_id=uuid)
+                    job.refresh(session)
+                    JobsQueue.instance.enqueue_job(session, job)
 
 
-# TODO remove those lines of test
-db = openerp.sql_db.db_connect('openerp_magento7')
-cr = db.cursor()
-registry = openerp.pooler.get_pool('openerp_magento7')
-session = Session(cr, openerp.SUPERUSER_ID, registry)
-try:
-    worker = Worker(session, 'openerp_magento7')
-    worker.daemon = True
-    worker.start()
-finally:
-    cr.close()
+def start_service():
+    registries = openerp.modules.registry.RegistryManager.registries
+    for db_name, registry in registries.iteritems():
+        worker = Worker(db_name)
+        worker.daemon = True
+        worker.start()
+
+start_service()
