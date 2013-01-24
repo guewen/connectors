@@ -20,22 +20,19 @@
 ##############################################################################
 
 import logging
+
 _logger = logging.getLogger(__name__)
 
 
-class AbstractSynchronization(object):
+class Synchronizer(object):
+    """ Base class for synchronizers """
 
     # implement in sub-classes
     model_name = None
     synchronization_type = None
 
-    def __init__(self, *args, **kwargs):
-        """
-        """
-
     def work(self, *args, **kwargs):
-        """ Placeholder for the synchronisation
-        """
+        """ Placeholder for the synchronisation """
 
     @classmethod
     def match(cls, synchronization_type, model):
@@ -48,7 +45,7 @@ class AbstractSynchronization(object):
                 cls.model_name == model_name)
 
 
-class SingleImport(AbstractSynchronization):
+class SingleImport(Synchronizer):
 
     model_name = None  # implement in sub-classes
     synchronization_type = 'import_record'
@@ -165,7 +162,7 @@ class SingleImport(AbstractSynchronization):
     #     after the commit"""
 
 
-class SingleExport(AbstractSynchronization):
+class SingleExport(Synchronizer):
 
     model_name = None  # implement in sub-classes
     synchronization_type = 'export_record'

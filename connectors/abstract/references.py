@@ -19,6 +19,13 @@
 #
 ##############################################################################
 
+from collections import Callable
+
+from .binders import Binder
+from .processors import Processor
+from .synchronizers import Synchronizer
+
+
 class ReferenceRegistry(object):
     def __init__(self):
         self.references = set()
@@ -93,6 +100,38 @@ class Reference(object):
             return '<Reference \'%s\', \'%s\'>' % (self.service, self.version)
         return '<Reference \'%s\'>' % self.service
 
+    def __call__(self, *args, **kwargs):
+        """ Reference decorator
+
+        For a reference ``magento`` declared like this::
+
+            magento = Reference('magento')
+
+        A binder, synchronizer or processor can be subscribed using::
+
+            @magento
+            class MagentoBinder(Binder):
+                # do stuff
+
+        """
+        def with_subscribe(**opts):
+            def wrapped_cls(cls):
+                if issubclass(cls, Binder):
+                    self.register_binder(cls, **opts)
+                elif issubclass(cls, Synchronizer):
+                    self.register_synchronizer(cls, **opts)
+                elif issubclass(cls, Processor):
+                    self.register_processor(cls, **opts)
+                else:
+                    raise TypeError('%s is not a valid type for %s' %
+                                    (cls, self))
+                return cls
+            return wrapped_cls
+
+        if len(args) == 1 and isinstance(args[0], Callable):
+            return with_subscribe(**kwargs)(*args)
+        return with_subscribe(**kwargs)
+
     def get_synchronizer(self, synchro_type, model):
         synchronizer = None
         if self._synchronizers:
@@ -133,7 +172,7 @@ class Reference(object):
                                  'with model: %s' % (self, model))
         return binder
 
-    def register_binder(self, binder):
+    def register_binder(self, binder, **kwargs):
         self._binder = binder
 
     def register_synchronizer(self, synchronizer):

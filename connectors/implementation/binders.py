@@ -20,23 +20,22 @@
 ##############################################################################
 
 import logging
-from ..abstract.binders import ModelRecordBinder
+from ..abstract.binders import Binder
 from .references import Magento
 
 _logger = logging.getLogger(__name__)
 
 
-class MagentoBinder(ModelRecordBinder):
+class MagentoBinder(Binder):
     """ Generic Binder for Magento """
 
 
+@Magento
 class SaleOrderBinder(MagentoBinder):
     model_name = 'sale.order'
 
-Magento.register_binder(SaleOrderBinder)
 
-
-class ResPartnerBinder(ModelRecordBinder):
+class ResPartnerBinder(MagentoBinder):
     model_name = 'res.partner'
 
     def to_openerp(self, referential_id, external_identifier):
@@ -68,6 +67,3 @@ class ResPartnerBinder(ModelRecordBinder):
         """
         _logger.debug('bind openerp_id %s with external_id %s',
                       openerp_id, external_identifier)
-
-
-Magento.register_binder(ResPartnerBinder)

@@ -24,6 +24,7 @@ from ..abstract.exceptions import InvalidDataError
 from .references import Magento, Magento1700
 
 
+@Magento
 class ResPartnerImport(SingleImport):
 
     model_name = 'res.partner'
@@ -36,10 +37,9 @@ class ResPartnerImport(SingleImport):
         if data.get('name') is None:
             raise InvalidDataError('Missing name')
 
-Magento.register_synchronizer(ResPartnerImport)
-
 
 # if Magento 1.7 needs a different synchronization:
+@Magento1700
 class ResPartner1700Import(SingleImport):
 
     model_name = 'res.partner'
@@ -52,10 +52,7 @@ class ResPartner1700Import(SingleImport):
         if data.get('name') is None:
             raise InvalidDataError('Missing name')
 
-Magento1700.register_synchronizer(ResPartner1700Import)
 
-
+@Magento
 class ResPartnerExport(SingleExport):
     model_name = 'res.partner'
-
-Magento.register_synchronizer(ResPartnerExport)
