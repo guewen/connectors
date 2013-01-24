@@ -29,8 +29,13 @@ with the external takes place.
 
 
 class ExternalAdapter(object):
+    """ Base External Adapter for the connectors
+    """
 
     model_name = None  # define in sub-classes
+
+    def __init__(self, reference):
+        self.reference = reference
 
     @classmethod
     def match(cls, model):
@@ -39,3 +44,36 @@ class ExternalAdapter(object):
         if cls.model_name is None:
             raise NotImplementedError
         return cls.model_name == model._name
+
+
+class ExternalRecordsAdapter(ExternalAdapter):
+    """ Base External Adapter specialized in the handling
+    of records on external systems.
+
+    Subclasses can implement their own implementation for
+    the methods:
+    * ...
+    * ...
+    """
+
+    model_name = None
+
+    def search(self, *args, **kwargs):
+        """ Search records according to some criterias
+        and returns a list of ids """
+
+    def read(self, *args, **kwargs):
+        """ Returns the information of a record """
+
+    def search_read(self, *args, **kwargs):
+        """ Search records according to some criterias
+        and returns their information"""
+
+    def create(self, *args, **kwargs):
+        """ Create a record on the external system """
+
+    def write(self, *args, **kwargs):
+        """ Update records on the external system """
+
+    def unlink(self, *args, **kwargs):
+        """ Delete a record on the external system """
