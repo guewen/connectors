@@ -20,6 +20,7 @@
 ##############################################################################
 
 import logging
+from .binders import ExternalIdentifier
 
 _logger = logging.getLogger(__name__)
 
@@ -54,7 +55,13 @@ class SingleImport(Synchronizer):
         self.reference = reference
         self.session = session
         self.model = self.session.pool.get(model_name)
+
         self.referential_id = referential_id  # sometimes it can be a shop...
+        ref_obj = self.session.pool.get('external.referential')
+        self.referential = ref_obj.browse(self.session.cr,
+                                          self.session.uid,
+                                          self.referential_id,
+                                          context=self.session.context)
         self._reference = None
         self._binder = None
 
@@ -214,9 +221,13 @@ class SingleExport(Synchronizer):
             external_id = self.binder.to_external(self.referential_id, openerp_id)
             external_id = self._update(external_id, transformed_data)
 
-        self.binder.bind(self.referential_id,
-                         external_id,
-                         openerp_id)
+        # when update does not find a record, it can call create,
+        # in such case, it will have a new identifier.
+        # when update does update, it must return None
+        if external_id:
+            self.binder.bind(self.referential_id,
+                             external_id,
+                             openerp_id)
 
         if with_commit:
             self.session.commit()
@@ -259,11 +270,15 @@ class SingleExport(Synchronizer):
 
     def _create(self, data):
         # delegate creation of the record
-        return
+        ext_id = ExternalIdentifier()
+        ext_id.id = 42
+        return ext_id
 
     def _update(self, external_id, data):
         # delegate update of the record
-        return
+        ext_id = ExternalIdentifier()
+        ext_id.id = 42
+        return ext_id
 
     # def _after_commit():
     #     """implement only if special actions need to be done
