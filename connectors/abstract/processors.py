@@ -23,6 +23,9 @@
 class Processor(object):
     """ Base class for processors """
 
+    # name of the OpenERP model, to be defined in concrete classes
+    model_name = None
+
     def __init__(self, synchronizer):
         self.synchronizer = synchronizer
         self.model = self.synchronizer.model
@@ -56,9 +59,6 @@ class Processor(object):
 # TODO 1 class per direction
 class AbstractModelProcessor(Processor):
     """ Transform a record to a defined output """
-
-    # name of the OpenERP model, to be defined in concrete classes
-    model_name = None
 
     direct_import = []
     method_import = []
