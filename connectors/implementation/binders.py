@@ -57,7 +57,7 @@ class MagentoBinder(Binder):
         ext_id.id = parsed
         return ext_id
 
-    def _get_openerp_id(self, referential_id, external_identifier):
+    def _get_openerp_id(self, referential, external_identifier):
         """Returns the id of the entry in ir.model.data and the expected
         id of the resource in the current model Warning the
         expected_oe_id may not exists in the model, that's the res_id
@@ -65,10 +65,11 @@ class MagentoBinder(Binder):
         """
         model_data_obj = self.session.pool.get('ir.model.data')
         model_data_ids = model_data_obj.search(
-                self.session.cr, self.session.uid,
+                self.session.cr,
+                self.session.uid,
                 [('name', '=', self._prefixed_id(external_identifier)),
                  ('model', '=', self.model._name),
-                 ('referential_id', '=', referential_id)],
+                 ('referential_id', '=', referential.id)],
                 context=self.session.context)
         model_data_id = model_data_ids and model_data_ids[0] or False
         expected_oe_id = False
@@ -80,7 +81,7 @@ class MagentoBinder(Binder):
                     ['res_id'])['res_id']
         return expected_oe_id
 
-    def to_openerp(self, referential_id, external_identifier):
+    def to_openerp(self, referential, external_identifier):
         """ Give the OpenERP ID for an external ID
 
         :param referential_id: id of the external.referential
@@ -90,7 +91,7 @@ class MagentoBinder(Binder):
         """
         if external_identifier:
             expected_oe_id = self._get_openerp_id(
-                    external_identifier, referential_id)
+                    external_identifier, referential)
             # OpenERP cleans up the references in ir.model.data to deleted
             # records only on server updates to avoid performance
             # penalty. Thus, we check if the record really still exists.
@@ -102,7 +103,7 @@ class MagentoBinder(Binder):
                     return expected_oe_id
         return False
 
-    def to_external(self, referential_id, openerp_id):
+    def to_external(self, referential, openerp_id):
         """ Give the external ID for an OpenERP ID
 
         :param referential_id: id of the external.referential
@@ -111,13 +112,12 @@ class MagentoBinder(Binder):
         :return: `ExternalIdentifier` of the record
         """
         data_obj = self.session.pool.get('ir.model.data')
-        # FIXME Lock ?
         model_data_ids = data_obj.search(
                 self.session.cr,
                 self.session.uid,
                 [('model', '=', self.model._name),
                  ('res_id', '=', openerp_id),
-                 ('referential_id', '=', referential_id)],
+                 ('referential_id', '=', referential.id)],
                 context=self.session.context)
         if model_data_ids:
             prefixed_id = data_obj.read(self.session.cr,
@@ -127,7 +127,7 @@ class MagentoBinder(Binder):
             return self._extid_from_prefixed_id(prefixed_id)
         return False
 
-    def bind(self, referential_id, external_identifier, openerp_id):
+    def bind(self, referential, external_identifier, openerp_id):
         """ Create the link between an external ID and an OpenERP ID
 
         :param referential_id: id of the external.referential
@@ -141,22 +141,21 @@ class MagentoBinder(Binder):
                       openerp_id, external_identifier.id)
 
         self._prepare_bind_vals(
-                referential_id,
+                referential,
                 openerp_id,
                 external_identifier)
         return self.session.pool.get('ir.model.data').create(
                 self.session.cr, self.session.uid,
                 bind_vals, context=self.session.context)
 
-    def _prepare_bind_vals(self, referential_id, openerp_id,
-                           external_identifier):
+    def _prepare_bind_vals(self, referential, openerp_id, external_identifier):
         """ Create an external reference for a resource id in the
         ir.model.data table
         """
         ext_ref_obj = self.session.pool.get('external.referential')
         module = 'extref/%s' % ext_ref_obj.read(self.session.cr,
                                                 self.session.uid,
-                                                referential_id,
+                                                referential.id,
                                                 ['name'])['name']
 
         bind_vals = {

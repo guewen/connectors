@@ -179,6 +179,11 @@ class SingleExport(Synchronizer):
         self.session = session
         self.model = self.session.pool.get(model_name)
         self.referential_id = referential_id  # sometimes it can be a shop...
+        ref_obj = self.session.pool.get('external.referential')
+        self.referential = ref_obj.browse(self.session.cr,
+                                          self.session.uid,
+                                          self.referential_id,
+                                          context=self.session.context)
         self._reference = None
         self._binder = None
 
@@ -218,7 +223,7 @@ class SingleExport(Synchronizer):
         if mode == 'create':
             external_id = self._create(transformed_data)
         else:
-            external_id = self.binder.to_external(self.referential_id, openerp_id)
+            external_id = self.binder.to_external(self.referential, openerp_id)
             external_id = self._update(external_id, transformed_data)
 
         # when update does not find a record, it can call create,

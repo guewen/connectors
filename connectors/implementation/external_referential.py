@@ -59,3 +59,19 @@ class external_referential(orm.Model):
         'password': fields.char('Password'),
     }
 
+
+class ir_model_data(orm.Model):
+    _inherit = 'ir.model.data'
+
+    _columns = {
+        'referential_id':fields.many2one(
+            'external.referential',
+            'External Referential'),
+    }
+
+    _sql_constraints = [
+        ('external_reference_uniq_per_object',
+         'unique(model, res_id, referential_id)',
+         'You cannot have on record with multiple external '
+         'id for a same referential'),
+    ]
