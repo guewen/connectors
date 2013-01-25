@@ -140,10 +140,9 @@ class MagentoBinder(Binder):
         _logger.debug('bind openerp_id %s with external_id %s',
                       openerp_id, external_identifier.id)
 
-        self._prepare_bind_vals(
-                referential,
-                openerp_id,
-                external_identifier)
+        bind_vals = self._prepare_bind_vals(referential,
+                                            openerp_id,
+                                            external_identifier)
         return self.session.pool.get('ir.model.data').create(
                 self.session.cr, self.session.uid,
                 bind_vals, context=self.session.context)
@@ -162,7 +161,7 @@ class MagentoBinder(Binder):
             'name': self._prefixed_id(external_identifier),
             'model': self.model._name,
             'res_id': openerp_id,
-            'external_referential_id': referential_id,
+            'referential_id': referential.id,
             'module': module
             }
         return bind_vals
