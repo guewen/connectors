@@ -18,10 +18,13 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+import logging
 
 from ..abstract.adapters import ExternalRecordsAdapter
 from .references import Magento
 from magento import Customer
+
+_logger = logging.getLogger(__name__)
 
 
 class MagentoLocation(object):
@@ -96,6 +99,7 @@ class ResPartnerAdapter(MagentoRecordsAdapter):
 
     def write(self, id, data):
         """ Update records on the external system """
+        _logger.debug('data %s', data)
         with Customer(self.magento.location,
                       self.magento.username,
                       self.magento.password) as api:

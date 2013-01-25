@@ -41,12 +41,24 @@ class Partner(BaseProcessor):
 class Partner1700(Partner):
     model_name = 'res.partner'
 
+    def name(self, attribute, record):
+        # XXX use base_partner_surname
+        if ' ' in record[attribute]:
+            parts = record[attribute].split(' ')
+            firstname = parts[0]
+            lastname = (' ').join(parts[1:])
+        else:
+            firstname = '-'
+            lastname = record[attribute]
+        return {'firstname': firstname, 'lastname': lastname}
+
     direct_import = [('lastname', 'name'),
                      ('email', 'email'),
                      ('street', 'street'),
                      ('city', 'city')]
-    direct_export = [('name', 'lastname'),
-                     ('email', 'email'),
+
+    direct_export = [('email', 'email'),
                      ('street', 'street'),
                      ('city', 'city')]
 
+    method_export = [('name', name)]
