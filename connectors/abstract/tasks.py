@@ -19,16 +19,17 @@
 #
 ##############################################################################
 
+from functools import wraps
 
-class TasksRegistry(object):
+from .queue import JobsQueue
 
-    def __init__(self):
-        self.tasks = {}
 
-    def get(self, task):
-        if task in self.tasks:
-            return self.tasks[task]
-        raise ValueError('No matching task found')
+# decorators
+def task(func):
+    def delay(session, *args, **kwargs):
+        JobsQueue.instance.enqueue_resolve_args(
+                session, func, *args, **kwargs)
+    func.delay = delay
+    return func
 
-    def register(self, task_name, function):
-        self.tasks[task_name] = function
+# TODO periodic_task?

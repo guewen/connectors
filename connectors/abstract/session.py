@@ -26,12 +26,13 @@ from contextlib import contextmanager
 
 class Session(object):
 
-    def __init__(self, cr, uid, pool, model_name, context=None):
+    def __init__(self, cr, uid, pool, model_name=None, context=None):
         self.cr = cr
         self.uid = uid
         self.pool = pool
         self.model_name = model_name
-        self.model = self.pool.get(model_name)
+        if model_name is not None:
+            self.model = self.pool.get(model_name)
         if context is None:
             context = {}
         self.context = context
@@ -48,15 +49,18 @@ class Session(object):
                              new_pool,
                              self.model_name,
                              context=self.context)
-        try:
-            yield subsession
-        except:
-            subsession.rollback()
-            raise
-        else:
-            subsession.commit()
-        finally:
-            subsession.close()
+        with subsession as sub:
+            yield sub
+
+    @contextmanager
+    def change_user(self, uid):
+        """ Temporarily change the user's session and restablish the
+        normal user at closing,
+        """
+        current_uid = self.uid
+        self.uid = uid
+        yield self
+        self.uid = current_uid
 
     def commit(self):
         self.cr.commit()
@@ -66,3 +70,14 @@ class Session(object):
 
     def close(self):
         self.cr.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        if tb is None:
+            self.commit()
+        else:
+            self.rollback()
+        self.close()
+
