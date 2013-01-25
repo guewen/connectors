@@ -51,7 +51,7 @@ class MagentoBinder(Binder):
         parsed = prefixed_id.split(self.model._name.replace('.', '_') + '/')[1]
 
         if parsed.isdigit():
-            parsed = int(res)
+            parsed = int(parsed)
         ext_id = ExternalIdentifier()  # TODO find a good way to manage
                                        # the ExternalIdentifier
         ext_id.id = parsed

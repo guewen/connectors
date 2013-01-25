@@ -23,9 +23,12 @@
 class Processor(object):
     """ Base class for processors """
 
-    def __init__(self, synchronizer):
-        self.synchronizer = synchronizer
-        self.model = self.synchronizer.model
+    model_name = None
+
+    def __init__(self, session, reference):
+        self.session = session
+        self.reference = reference
+        self.model = self.session.pool.get(self.model_name)
 
     @classmethod
     def match(cls, model):
@@ -37,9 +40,13 @@ class Processor(object):
         """
         if cls.model_name is None:
             raise NotImplementedError
-        return cls.model_name == model._name
+        if hasattr(model, '_name'):  # model instance
+            model_name = model._name
+        else:
+            model_name = model  # str
+        return cls.model_name == model_name
 
-    def to_reference(self, record, defaults=None):
+    def to_reference(self, record, fields=None, defaults=None):
         """ Transform an OpenERP record to an external record
         """
 
@@ -90,15 +97,15 @@ class AbstractModelProcessor(Processor):
             if isinstance(vals, dict):
                 result.update(vals)
 
-        for ref_attr, (oerp_attr, sub_cls) in self.sub_import:
-            attr = record[ref_attr]  # not compatible with all record types
-            sub = sub_cls(self.synchronizer)
-            vals = sub._o2m_to_openerp(attr, parent_value=result)
-            result[oerp_attr] = vals
+        # for ref_attr, (oerp_attr, sub_cls) in self.sub_import:
+        #     attr = record[ref_attr]  # not compatible with all record types
+        #     sub = sub_cls(self.synchronizer)
+        #     vals = sub._o2m_to_openerp(attr, parent_value=result)
+        #     result[oerp_attr] = vals
 
         return result
 
-    def to_reference(self, record, defaults=None):
+    def to_reference(self, record, fields=None, defaults=None):
         """ Transform an OpenERP record to an external record
         """
 

@@ -20,6 +20,7 @@
 ##############################################################################
 
 from ..abstract.adapters import ExternalRecordsAdapter
+from .references import Magento
 
 
 class MagentoRecordsAdapter(ExternalRecordsAdapter):
@@ -30,6 +31,6 @@ class MagentoRecordsAdapter(ExternalRecordsAdapter):
         # TODO pooler of connections?
 
 
-
+@Magento
 class ResPartnerAdapter(MagentoRecordsAdapter):
-    pass
+    model_name = 'res.partner'

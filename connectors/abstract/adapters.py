@@ -43,7 +43,11 @@ class ExternalAdapter(object):
         """
         if cls.model_name is None:
             raise NotImplementedError
-        return cls.model_name == model._name
+        if hasattr(model, '_name'):  # model instance
+            model_name = model._name
+        else:
+            model_name = model  # str
+        return cls.model_name == model_name
 
 
 class ExternalRecordsAdapter(ExternalAdapter):

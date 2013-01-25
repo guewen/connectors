@@ -20,7 +20,7 @@
 ##############################################################################
 
 
-class ExternalIdentifier(dict):
+class ExternalIdentifier(object):
     """ Most of the time, on an external system, a record is identified
     by a unique ID. However occasionaly, it is identified by an ID and a
     second key, or even no ID at all but some keys.
@@ -31,6 +31,10 @@ class ExternalIdentifier(dict):
     The instance should support pickling because an
     `ExternalIdentifier` can be stored in a job.
     """
+    def __init__(self, **kwargs):
+        for key, value in kwargs.iteritems():
+            setattr(self, key, value)
+
 
 class Binder(object):
     """ For one record of a model, capable to find an external or
@@ -45,9 +49,14 @@ class Binder(object):
         """
         if cls.model_name is None:
             raise NotImplementedError
-        return cls.model_name == model._name
+        if hasattr(model, '_name'):  # model instance
+            model_name = model._name
+        else:
+            model_name = model  # str
+        return cls.model_name == model_name
 
-    def __init__(self, session):
+    def __init__(self, session, reference):
+        self.reference = reference
         self.session = session
         self.model = self.session.pool.get(self.model_name)
 
