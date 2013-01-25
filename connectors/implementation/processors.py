@@ -19,29 +19,26 @@
 #
 ##############################################################################
 
-from ..abstract.processors import AbstractModelProcessor
+from ..abstract.processors import Processor
 from .references import Magento, Magento1700
 
 
-class Product(AbstractModelProcessor):
+@Magento
+class Product(Processor):
     model_name = 'product.product'
 
-Magento.register_processor(Product)
 
-
-class Partner(AbstractModelProcessor):
+@Magento
+class Partner(Processor):
     model_name = 'res.partner'
 
     direct_import = [('name', 'name')]
 
-Magento.register_processor(Partner)
-
 
 # example of specific mapping for version 1.7
+@Magento1700
 class Partner1700(Partner):
     model_name = 'res.partner'
 
     direct_import = [('name', 'name'),
                      ('test', 'test')]
-
-Magento1700.register_processor(Partner1700)

@@ -25,12 +25,39 @@ from contextlib import contextmanager
 
 
 class Session(object):
+    """ Container for the OpenERP transactional stuff:
+
+    * `cr`: Cursor
+    * `uid`: User id
+    * `pool`: pool or registry of models
+    * `context`: OpenERP context
+
+    A session can hold a reference to a model. This is useful
+    in the connectors' context because a session's live is usually
+    focused on a model (export a product, import a sale order, ...)
+    * `model_name`: name of the model
+    * `model`: instance of the model
+
+    A session can be used as a context manager. When using the context
+    manager, the cursor will be committed or rollbacked (if an exception
+    occurs), then closed.
+
+    A session can open a new session with the same attributes, but a new
+    cursor. Usage::
+
+        with session.subsession() as subsession:
+            do_work(subsession, ...)
+
+    The subsession will be committed / rollbacked and closed as well.
+
+    """
 
     def __init__(self, cr, uid, pool, model_name=None, context=None):
         self.cr = cr
         self.uid = uid
         self.pool = pool
         self.model_name = model_name
+        self.model = None
         if model_name is not None:
             self.model = self.pool.get(model_name)
         if context is None:
@@ -38,18 +65,16 @@ class Session(object):
         self.context = context
 
     @contextmanager
-    def own_transaction(self):
+    def subsession(self):
         """ Open a new transaction and ensure that it is correctly
         closed.
         """
-        db, new_pool = \
-                openerp.pooler.get_db_and_pool(self.cr.dbname)
-        subsession = Session(db.cursor(),
-                             self.uid,
-                             new_pool,
-                             self.model_name,
-                             context=self.context)
-        with subsession as sub:
+        db, new_pool = openerp.pooler.get_db_and_pool(self.cr.dbname)
+        with Session(db.cursor(),
+                     self.uid,
+                     new_pool,
+                     self.model_name,
+                     context=self.context) as sub:
             yield sub
 
     @contextmanager
@@ -80,4 +105,3 @@ class Session(object):
         else:
             self.rollback()
         self.close()
-

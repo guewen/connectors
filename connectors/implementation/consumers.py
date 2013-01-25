@@ -36,7 +36,8 @@ from .tasks import import_generic, export_generic
 _MODEL_NAMES = ('product.product', 'res.partner')
 
 
-def record_created(session, record_id):
+@on_record_create(model_names=_MODEL_NAMES)
+def delay_export_generic(session, record_id):
     """ here belongs the task(s) creation """
     # TODO: task created could be different according to the model
     # example: loop on referentials of the record and create a task per
@@ -47,11 +48,9 @@ def record_created(session, record_id):
                          mode='create',
                          referential_id=1)
 
-on_record_create.subscribe(record_created,
-                           model_names=_MODEL_NAMES)
 
-
-def record_written(session, record_id, fields):
+@on_record_write(model_names=_MODEL_NAMES)
+def delay_export_generic_update(session, record_id, fields):
     """ here belongs the task(s) creation """
     export_generic.delay(session,
                          session.model_name,
@@ -60,16 +59,10 @@ def record_written(session, record_id, fields):
                          fields=fields,
                          referential_id=1)
 
-on_record_write.subscribe(record_written,
-                          model_names=_MODEL_NAMES)
 
-
-def record_unlinked(session, record_id):
+@on_record_unlink(model_names=_MODEL_NAMES)
+def delay_unlink(session, record_id):
     """ here belongs the task(s) creation """
     # XXX
-
-on_record_unlink.subscribe(record_unlinked,
-                           model_names=_MODEL_NAMES)
-
 
 # TODO on_sale_order_status_change, on_stock_picking_tracking_number

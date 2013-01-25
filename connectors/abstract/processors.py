@@ -19,27 +19,15 @@
 #
 ##############################################################################
 
-# XXX 1 class per direction?
 
-
-class AbstractModelProcessor(object):
-    """ Transform a record to a defined output
-    """
+class Processor(object):
+    """ Base class for processors """
 
     # name of the OpenERP model, to be defined in concrete classes
     model_name = None
 
-    direct_import = []
-    method_import = []
-    sub_import = []  # sub import of o2m
-
-    direct_export = []
-    method_export = []
-    sub_export = []  # sub export of o2m
-
     def __init__(self, synchronizer):
         self.synchronizer = synchronizer
-        # shortcut
         self.model = self.synchronizer.model
 
     @classmethod
@@ -53,6 +41,33 @@ class AbstractModelProcessor(object):
         if cls.model_name is None:
             raise NotImplementedError
         return cls.model_name == model._name
+
+    def to_reference(self, record, defaults=None):
+        """ Transform an OpenERP record to an external record
+        """
+
+    def to_openerp(self, record, defaults=None, parent_values=None):
+        """ Transform an external record to an OpenERP record
+
+        :param record: record to transform
+        :param defaults: dict of default values when attributes are not set
+        :param parent_values: openerp record of the containing object
+            (e.g. sale_order for a sale_order_line)
+        """
+
+
+# TODO 1 class per direction
+class AbstractModelProcessor(Processor):
+    """ Transform a record to a defined output """
+
+    direct_import = []
+    method_import = []
+    sub_import = []  # sub import of o2m
+
+    direct_export = []
+    method_export = []
+    sub_export = []  # sub export of o2m
+
 
     def to_openerp(self, record, defaults=None, parent_values=None):
         """ Transform an external record to an OpenERP record

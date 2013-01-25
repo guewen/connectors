@@ -19,6 +19,7 @@
 #
 ##############################################################################
 
+
 class ExternalIdentifier(dict):
     """ Most of the time, on an external system, a record is identified
     by a unique ID. However occasionaly, it is identified by an ID and a
@@ -31,8 +32,7 @@ class ExternalIdentifier(dict):
     `ExternalIdentifier` can be stored in a job.
     """
 
-
-class ModelRecordBinder(object):
+class Binder(object):
     """ For one record of a model, capable to find an external or
     internal id, or create the link between them
     """
