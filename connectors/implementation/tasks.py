@@ -27,6 +27,7 @@ from ..abstract.tasks import task
 from ..abstract.session import Session
 from ..abstract.worker import Worker
 from ..abstract.queue import JobsQueue
+from .adapters import MagentoLocation
 
 _logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ _logger = logging.getLogger(__name__)
 @task
 def import_generic(session, model_name=None, record_id=None, mode='create',
                    referential_id=None, with_commit=False):
-    """ Import a record from the external referential
-
+    """ Import a record from the external referential """
+    """
     Use keyword arguments for the task arguments
 
     Only the `Worker` should use the `with_commit` argument.
@@ -52,12 +53,13 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
                                 referential_id,
                                 context=session.context)
     ref = get_reference(ext_ref.service, ext_ref.version)
+    magento = MagentoLocation(ext_ref.location, ext_ref.username, ext_ref.password)
 
     importer_class = ref.get_synchronizer('import_record', model_name)
     importer = importer_class(ref, session, model_name, referential_id)
     importer.binder = ref.get_binder(model_name)(session, ref)
     importer.processor = ref.get_processor(model_name)(session, ref)
-    importer.external_adapter = ref.get_adapter(model_name)(ref)
+    importer.external_adapter = ref.get_adapter(model_name)(ref, magento)
     importer.work(record_id, mode, with_commit=with_commit)
 
 
@@ -65,8 +67,8 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
 def export_generic(session, model_name=None, record_id=None,
                    mode='create', fields=None, referential_id=None,
                    with_commit=False):
-    """ Export a record to the external referential
-
+    """ Export a record to the external referential """
+    """
     Use keyword arguments for the task arguments
     Only the `Worker` should use the `with_commit` argument.
 
@@ -84,12 +86,13 @@ def export_generic(session, model_name=None, record_id=None,
                                 referential_id,
                                 context=session.context)
     ref = get_reference(ext_ref.service, ext_ref.version)
+    magento = MagentoLocation(ext_ref.location, ext_ref.username, ext_ref.password)
 
     exporter_class = ref.get_synchronizer('export_record', model_name)
     exporter = exporter_class(ref, session, model_name, referential_id)
     exporter.binder = ref.get_binder(model_name)(session, ref)
     exporter.processor = ref.get_processor(model_name)(session, ref)
-    exporter.external_adapter = ref.get_adapter(model_name)(ref)
+    exporter.external_adapter = ref.get_adapter(model_name)(ref, magento)
     # if the task export with commit, it should not be called
     # for subimports
     exporter.work(record_id, mode, fields=fields, with_commit=with_commit)

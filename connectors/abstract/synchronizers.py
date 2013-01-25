@@ -125,9 +125,10 @@ class SingleImport(Synchronizer):
                                                 external_id)
             openerp_id = self._update(openerp_id, transformed_data)
 
-        self.binder.bind(self.referential,
-                         external_id,
-                         openerp_id)
+        if openerp_id:
+            self.binder.bind(self.referential,
+                             external_id,
+                             openerp_id)
 
         if with_commit:
             self.session.commit()
@@ -325,16 +326,17 @@ class SingleExport(Synchronizer):
 
     def _create(self, data):
         # delegate creation of the record
-        return ExternalIdentifier(id=42)
+        ext_id = self.external_adapter.create(data)
+        return ExternalIdentifier(id=ext_id)
 
     def _update(self, external_id, data):
         if external_id:
             # update
-            pass
+            self.external_adapter.write(external_id, data)
         else:
             return self._create(data)  # FIXME generate the full data
         return
 
     # def _after_commit():
-    #     """implement only if special actions need to be done
+    #     """implemen only if special actions need to be done
     #     after the commit"""

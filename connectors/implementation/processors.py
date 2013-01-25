@@ -19,20 +19,21 @@
 #
 ##############################################################################
 
-from ..abstract.processors import Processor
+from ..abstract.processors import BaseProcessor
 from .references import Magento, Magento1700
 
 
 @Magento
-class Product(Processor):
+class Product(BaseProcessor):
     model_name = 'product.product'
 
 
 @Magento
-class Partner(Processor):
+class Partner(BaseProcessor):
     model_name = 'res.partner'
 
-    direct_import = [('name', 'name')]
+    direct_import = [('name', 'name'),
+                     ('email', 'email')]
 
 
 # example of specific mapping for version 1.7
@@ -40,5 +41,12 @@ class Partner(Processor):
 class Partner1700(Partner):
     model_name = 'res.partner'
 
-    direct_import = [('name', 'name'),
-                     ('test', 'test')]
+    direct_import = [('lastname', 'name'),
+                     ('email', 'email'),
+                     ('street', 'street'),
+                     ('city', 'city')]
+    direct_export = [('name', 'lastname'),
+                     ('email', 'email'),
+                     ('street', 'street'),
+                     ('city', 'city')]
+

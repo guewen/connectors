@@ -21,16 +21,89 @@
 
 from ..abstract.adapters import ExternalRecordsAdapter
 from .references import Magento
+from magento import Customer
+
+
+class MagentoLocation(object):
+
+    def __init__(self, location, username, password):
+        self.location = location
+        self.username = username
+        self.password = password
 
 
 class MagentoRecordsAdapter(ExternalRecordsAdapter):
     """ External Records Adapter for Magento """
 
-    def connection(self):
-        """ Establish a connection with Magento """
-        # TODO pooler of connections?
+    def __init__(self, reference, magento):
+        super(MagentoRecordsAdapter, self).__init__(reference)
+        self.magento = magento
+
+    def search(self, filters=None):
+        """ Search records according to some criterias
+        and returns a list of ids """
+        raise NotImplementedError
+
+    def read(self, id, attributes=None):
+        """ Returns the information of a record """
+        raise NotImplementedError
+
+    def search_read(self, filters=None):
+        """ Search records according to some criterias
+        and returns their information"""
+        raise NotImplementedError
+
+    def create(self, data):
+        """ Create a record on the external system """
+        raise NotImplementedError
+
+    def write(self, id, data):
+        """ Update records on the external system """
+        raise NotImplementedError
+
+    def unlink(self, id):
+        """ Delete a record on the external system """
+        raise NotImplementedError
 
 
 @Magento
 class ResPartnerAdapter(MagentoRecordsAdapter):
+
     model_name = 'res.partner'
+
+    def search(self, filters=None):
+        """ Search records according to some criterias
+        and returns a list of ids """
+        with Customer(self.magento.location,
+                      self.magento.username,
+                      self.magento.password) as api:
+            rows = api.list(filters)
+            return [row['entity_id'] for row in rows]
+
+    def read(self, id, attributes=None):
+        """ Returns the information of a record """
+        with Customer(self.magento.location,
+                      self.magento.username,
+                      self.magento.password) as api:
+            return api.info(id, attributes)
+
+    def create(self, data):
+        """ Create a record on the external system """
+        with Customer(self.magento.location,
+                      self.magento.username,
+                      self.magento.password) as api:
+            return api.create(data)
+
+    def write(self, id, data):
+        """ Update records on the external system """
+        with Customer(self.magento.location,
+                      self.magento.username,
+                      self.magento.password) as api:
+            return api.update(id, data)
+
+    def unlink(self, id):
+        """ Delete a record on the external system """
+        with Customer(self.magento.location,
+                      self.magento.username,
+                      self.magento.password) as api:
+            return api.delete(id)

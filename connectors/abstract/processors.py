@@ -61,7 +61,7 @@ class Processor(object):
 
 
 # TODO 1 class per direction
-class AbstractModelProcessor(Processor):
+class BaseProcessor(Processor):
     """ Transform a record to a defined output """
 
     # name of the OpenERP model, to be defined in concrete classes
@@ -97,6 +97,7 @@ class AbstractModelProcessor(Processor):
             if isinstance(vals, dict):
                 result.update(vals)
 
+        # TODO: o2m
         # for ref_attr, (oerp_attr, sub_cls) in self.sub_import:
         #     attr = record[ref_attr]  # not compatible with all record types
         #     sub = sub_cls(self.synchronizer)
@@ -108,6 +109,22 @@ class AbstractModelProcessor(Processor):
     def to_reference(self, record, fields=None, defaults=None):
         """ Transform an OpenERP record to an external record
         """
+        if defaults is None:
+            defaults = {}
+        else:
+            result = dict(defaults)
+        # TODO: fields
+
+        for oerp_attr, ref_attr in self.direct_export:
+            result[ref_attr] = record[oerp_attr]
+
+        for oerp_attr, meth in self.method_export:
+            vals = meth(self, oerp_attr, record)
+            if isinstance(vals, dict):
+                result.update(vals)
+
+        # TODO submappings (one2many)
+        return result
 
     def _o2m_to_openerp(self, records, parent_values=None):
         """ return values of a one2many to put in the main record

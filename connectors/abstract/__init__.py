@@ -11,3 +11,4 @@ from .session import *
 from .jobs import *
 from .worker import *
 from .adapters import *
+import jobs_model

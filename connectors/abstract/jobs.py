@@ -29,7 +29,6 @@ from cPickle import loads, dumps, UnpicklingError # XXX check errors
 from datetime import datetime
 
 from openerp import SUPERUSER_ID
-from openerp.osv import orm, fields
 from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT
 from .exceptions import NoSuchJobError, NotReadableJobError
 
@@ -78,7 +77,8 @@ class OpenERPJobStorage(JobStorage):
         """ Store the Job """
         vals = dict(uuid=self.job.id,
                     state=self.job.state,
-                    name=self.job.func_string)
+                    name=self.job.name,
+                    func_string=self.job.func_string)
 
         vals['func'] = dumps((self.job.func_name,
                               self.job.args,
@@ -150,6 +150,11 @@ class OpenERPJobStorage(JobStorage):
         (self.job.func_name,
          self.job.args,
          self.job.kwargs) = func
+
+        if stored.date_created:
+            self.job.date_created = datetime.strptime(
+                    stored.date_created, DEFAULT_SERVER_DATETIME_FORMAT)
+
         if stored.date_enqueued:
             self.job.date_enqueued = datetime.strptime(
                     stored.date_enqueued, DEFAULT_SERVER_DATETIME_FORMAT)
@@ -195,7 +200,7 @@ class Job(object):
             elif inspect.isfunction(func):
                 self.func_name = '%s.%s' % (func.__module__, func.__name__)
             else:
-                self.func_name = func  # str
+                raise TypeError('%s is not a valid function for a job' % func)
 
         self._id = job_id
 
@@ -233,6 +238,10 @@ class Job(object):
         kwargs = ['%s=%r' % (key, val) for key, val
                   in self.kwargs.iteritems()]
         return '%s(%s)' % (self.func_name, ', '.join(args + kwargs))
+
+    @property
+    def name(self):
+        return self.func.__doc__ or 'Function %s' % self.func.__name__
 
     @property
     def id(self):
@@ -295,34 +304,3 @@ class Job(object):
     def __repr__(self):
         return '<Job %s, priority:%d>' % (self.id, self.priority)
 
-
-class JobsStorageModel(orm.Model):
-    """ Job status and result.
-    """
-    _name = 'jobs.storage'
-
-    _log_access = False
-
-    _columns = {
-        'uuid': fields.char('UUID', readonly=True, select=True),
-        'name': fields.char('Task', readonly=True),
-        'func': fields.text('Pickled Job Function', readonly=True),
-        # TODO: use the constants from module .tasks
-        'state': fields.selection([('queued', 'Queued'),
-                                   ('started', 'Started'),
-                                   ('failed', 'Failed'),
-                                   ('done', 'Done')],
-                                  string='State',
-                                  readonly=True),
-        'exc_info': fields.text('Traceback', readonly=True),
-        'result': fields.text('Result', readonly=True),
-        'date_created': fields.datetime('Created Date', readonly=True),
-        'date_started': fields.datetime('Start Date', readonly=True),
-        'date_enqueued': fields.datetime('Enqueue Time', readonly=True),
-        'date_done': fields.datetime('Date Done', readonly=True),
-        'only_after': fields.datetime('Execute only after'),
-        }
-
-    _defaults = {
-        'state': 'pending',
-        }
