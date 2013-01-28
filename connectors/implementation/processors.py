@@ -19,26 +19,37 @@
 #
 ##############################################################################
 
-from ..abstract.processors import BaseProcessor
+from ..abstract.processors import ToReferenceProcessor, FromReferenceProcessor
 from .references import Magento, Magento1700
 
 
 @Magento
-class Product(BaseProcessor):
+class ToRefProduct(ToReferenceProcessor):
+    model_name = 'product.product'
+
+@Magento
+class FromRefProduct(FromReferenceProcessor):
     model_name = 'product.product'
 
 
 @Magento
-class Partner(BaseProcessor):
+class FromRefPartner(FromReferenceProcessor):
     model_name = 'res.partner'
 
-    direct_import = [('name', 'name'),
-                     ('email', 'email')]
+    direct = [('name', 'name'),
+              ('email', 'email')]
 
-
-# example of specific mapping for version 1.7
 @Magento1700
-class Partner1700(Partner):
+class FromRefPartner1700(FromRefPartner):
+
+    direct = [('lastname', 'name'),
+              ('email', 'email'),
+              ('street', 'street'),
+              ('city', 'city')]
+
+
+@Magento1700
+class ToRefPartner1700(ToReferenceProcessor):
     model_name = 'res.partner'
 
     def name(self, attribute, record):
@@ -52,13 +63,8 @@ class Partner1700(Partner):
             lastname = record[attribute]
         return {'firstname': firstname, 'lastname': lastname}
 
-    direct_import = [('lastname', 'name'),
-                     ('email', 'email'),
-                     ('street', 'street'),
-                     ('city', 'city')]
+    direct = [('email', 'email'),
+              ('street', 'street'),
+              ('city', 'city')]
 
-    direct_export = [('email', 'email'),
-                     ('street', 'street'),
-                     ('city', 'city')]
-
-    method_export = [('name', name)]
+    method = [('name', name)]

@@ -28,6 +28,7 @@ from ..abstract.session import Session
 from ..abstract.worker import Worker
 from ..abstract.queue import JobsQueue
 from .adapters import MagentoLocation
+from ..abstract import TO_REFERENCE, FROM_REFERENCE
 
 _logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
     importer_class = ref.get_synchronizer('import_record', model_name)
     importer = importer_class(ref, session, model_name, referential_id)
     importer.binder = ref.get_binder(model_name)(session, ref)
-    importer.processor = ref.get_processor(model_name)(session, ref)
+    importer.processor = ref.get_processor(model_name, FROM_REFERENCE)(session, ref)
     importer.external_adapter = ref.get_adapter(model_name)(ref, magento)
     importer.work(record_id, mode, with_commit=with_commit)
 
@@ -91,7 +92,7 @@ def export_generic(session, model_name=None, record_id=None,
     exporter_class = ref.get_synchronizer('export_record', model_name)
     exporter = exporter_class(ref, session, model_name, referential_id)
     exporter.binder = ref.get_binder(model_name)(session, ref)
-    exporter.processor = ref.get_processor(model_name)(session, ref)
+    exporter.processor = ref.get_processor(model_name, TO_REFERENCE)(session, ref)
     exporter.external_adapter = ref.get_adapter(model_name)(ref, magento)
     # if the task export with commit, it should not be called
     # for subimports

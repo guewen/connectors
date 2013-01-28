@@ -170,7 +170,7 @@ class SingleImport(Synchronizer):
 
     def _transform_data(self, external_data):
         # from where do come the default values?
-        return self.processor.to_openerp(external_data, defaults={})
+        return self.processor.convert(external_data, defaults={})
 
     def _create(self, data):
         # delegate creation of the record
@@ -322,7 +322,7 @@ class SingleExport(Synchronizer):
     def _transform_data(self, record, fields=None):
         # delegate a call to mapping
         # from where do come the default values?
-        return self.processor.to_reference(record, fields=fields, defaults={})
+        return self.processor.convert(record, fields=fields, defaults={})
 
     def _create(self, data):
         # delegate creation of the record

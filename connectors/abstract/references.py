@@ -152,17 +152,20 @@ class Reference(object):
                                  (self, synchro_type, model))
         return synchronizer
 
-    def get_processor(self, model):
+    def get_processor(self, model, direction, child_of=None):
         processor = None
         for proc in self._processors:
-            if proc.match(model):
+            if proc.match(model, direction, child_of=child_of):
                 processor = proc
                 break
         if processor is None and self.parent:
-            processor = self.parent.get_processor(model)
+            processor = self.parent.get_processor(model,
+                                                  direction,
+                                                  child_of=child_of)
             if processor is None:
                 raise ValueError('No matching processor found for %s '
-                                 'with model: %s' % (self, model))
+                                 'with model,direction,child_of: %s,%s,%s' %
+                                 (self, model, direction, child_of))
         return processor
 
     def get_adapter(self, model):

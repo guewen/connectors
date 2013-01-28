@@ -19,11 +19,43 @@
 #
 ##############################################################################
 
+# directions
+TO_REFERENCE = 'to_reference'
+FROM_REFERENCE = 'from_reference'
+
 
 class Processor(object):
-    """ Base class for processors """
+    """ Transform a record to a defined output
 
+    Sub-conversions are conversion of records in a record. For instance::
+
+        <sale>
+          <ref>100001</ref>
+          <name>Guewen Baconnier</name>
+          <lines>
+            <line>
+              <item>Product 1</item>
+              <unit>1</unit>
+              <price>10</price>
+            </line>
+            <line>
+              <item>Product 2</item>
+              <unit>1</unit>
+              <price>10</price>
+            </line>
+          </lines>
+        </sale>
+
+    A sub-conversion will be necessary to convert the lines.
+    """
+
+    # name of the OpenERP model, to be defined in concrete classes
     model_name = None
+    # direction of the conversion (TO_REFERENCE or FROM_REFERENCE)
+    direction = None
+    # name of of the parent model ('sale.order' for instance)
+    # used for conversions of sub-records
+    child_of = None
 
     def __init__(self, session, reference):
         self.session = session
@@ -31,7 +63,7 @@ class Processor(object):
         self.model = self.session.pool.get(self.model_name)
 
     @classmethod
-    def match(cls, model):
+    def match(cls, model, direction, child_of=None):
         """ Find the appropriate class to transform
         the record
 
@@ -44,40 +76,17 @@ class Processor(object):
             model_name = model._name
         else:
             model_name = model  # str
-        return cls.model_name == model_name
+        return (cls.model_name == model_name and
+                cls.direction == direction and
+                cls.child_of == child_of)
 
-    def to_reference(self, record, fields=None, defaults=None):
-        """ Transform an OpenERP record to an external record
-        """
+    direct = []
+    method = []
+    children = []  # conversion of sub-records
 
-    def to_openerp(self, record, defaults=None, parent_values=None):
-        """ Transform an external record to an OpenERP record
+    def convert(self, record, fields=None, defaults=None, parent_values=None):
+        """ Transform an external record to an OpenERP record or the opposite
 
-        :param record: record to transform
-        :param defaults: dict of default values when attributes are not set
-        :param parent_values: openerp record of the containing object
-            (e.g. sale_order for a sale_order_line)
-        """
-
-
-# TODO 1 class per direction
-class BaseProcessor(Processor):
-    """ Transform a record to a defined output """
-
-    # name of the OpenERP model, to be defined in concrete classes
-    model_name = None
-
-    direct_import = []
-    method_import = []
-    sub_import = []  # sub import of o2m
-
-    direct_export = []
-    method_export = []
-    sub_export = []  # sub export of o2m
-
-
-    def to_openerp(self, record, defaults=None, parent_values=None):
-        """ Transform an external record to an OpenERP record
 
         :param record: record to transform
         :param defaults: dict of default values when attributes are not set
@@ -89,51 +98,70 @@ class BaseProcessor(Processor):
         else:
             result = dict(defaults)
 
-        for ref_attr, oerp_attr in self.direct_import:
-            result[oerp_attr] = record.get(ref_attr, False)
+        if fields is None:
+            fields = {}
 
-        for ref_attr, meth in self.method_import:
-            vals = meth(self, ref_attr, record)
+        for from_attr, to_attr in self.direct:
+            result[from_attr] = record[to_attr]  # XXX not compatible with all
+                                                 # record type (wrap
+                                                 # records?)
+
+        for attr, meth in self.method:
+            vals = meth(self, attr, record)
             if isinstance(vals, dict):
                 result.update(vals)
 
-        # TODO: o2m
-        # for ref_attr, (oerp_attr, sub_cls) in self.sub_import:
-        #     attr = record[ref_attr]  # not compatible with all record types
-        #     sub = sub_cls(self.synchronizer)
-        #     vals = sub._o2m_to_openerp(attr, parent_value=result)
-        #     result[oerp_attr] = vals
+        for attr, model in self.children:
+            processor_class = self.reference.get_processor(model,
+                                                           self.direction,
+                                                           self.model_name)
+            processor = processor_class(self.session, self.reference)
+            content = record[attr]  # XXX not compatible with
+                                    # all record types
+            vals = self._sub_convert(content, processor, parent_values=result)
+            result[attr] = vals
 
         return result
 
-    def to_reference(self, record, fields=None, defaults=None):
-        """ Transform an OpenERP record to an external record
-        """
-        if defaults is None:
-            defaults = {}
-        else:
-            result = dict(defaults)
-        # TODO: fields
-
-        for oerp_attr, ref_attr in self.direct_export:
-            result[ref_attr] = record[oerp_attr]
-
-        for oerp_attr, meth in self.method_export:
-            vals = meth(self, oerp_attr, record)
-            if isinstance(vals, dict):
-                result.update(vals)
-
-        # TODO submappings (one2many)
-        return result
-
-    def _o2m_to_openerp(self, records, parent_values=None):
+    def _sub_convert(self, records, processor, parent_values=None):
         """ return values of a one2many to put in the main record
         do not create the records!
         """
-        # XXX get default values
+        raise NotImplementedError
+
+
+class ToReferenceProcessor(Processor):
+    # direction of the conversion (TO_REFERENCE or FROM_REFERENCE)
+    direction = TO_REFERENCE
+
+    def _sub_convert(self, records, processor, parent_values=None):
+        """ return values of a one2many to put in the main record
+        do not create the records!
+        """
+        # XXX get default values?
         result = []
         for record in records:
-            vals = self.to_openerp(record, defaults=None)
+            vals = processor.convert(record,
+                                     parent_values=parent_values,
+                                     defaults=None)
+            result.append(vals)
+        return result
+
+
+class FromReferenceProcessor(Processor):
+    # direction of the conversion (TO_REFERENCE or FROM_REFERENCE)
+    direction = FROM_REFERENCE
+
+    def _sub_convert(self, records, processor, parent_values=None):
+        """ return values of a one2many to put in the main record
+        do not create the records!
+        """
+        # XXX get default values?
+        result = []
+        for record in records:
+            vals = processor.convert(record,
+                                     parent_values=parent_values,
+                                     defaults=None)
             result.append((0, 0, vals))
         return result
 
