@@ -36,7 +36,7 @@ from .exceptions import (NoSuchJobError,
 
 _logger = logging.getLogger(__name__)
 
-WAIT_REGISTRY_TIME = 20  # seconds
+WAIT_REGISTRY_TIME = 1  # seconds
 
 
 class Worker(threading.Thread):
@@ -72,7 +72,7 @@ class Worker(threading.Thread):
                 # TODO: implement the retryable errrors:
                 # retryable should be requeued with a only_after date
                 raise NotImplementedError('RetryableJobError to implement')
-            except FailedJobError, Exception:  # XXX Exception?
+            except (FailedJobError, Exception):  # XXX Exception?
                 # TODO allow to pass a pipeline of exception
                 # handlers (log errors, send by email, ...)
                 buff = StringIO()
@@ -119,7 +119,7 @@ class Worker(threading.Thread):
         cr = db.cursor()
         with Session(cr, openerp.SUPERUSER_ID, self.registry) as session:
             cr.execute("SELECT uuid FROM jobs_storage "
-                       "WHERE state = 'queued' "
+                       "WHERE state in ('queued', 'started') "
                        "FOR UPDATE ")
             uuids = cr.fetchall()
             if uuids:

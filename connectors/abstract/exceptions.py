@@ -46,3 +46,7 @@ class FailedJobError(JobError):
 
 class RetryableJobError(JobError):
     """ A job had an error but can be retried. """
+
+
+class SkipTaskError(JobError):
+    """ Skip a task """

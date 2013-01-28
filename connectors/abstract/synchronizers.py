@@ -20,6 +20,8 @@
 ##############################################################################
 
 import logging
+from .binders import ExternalIdentifier
+from .events import on_record_create
 
 _logger = logging.getLogger(__name__)
 
@@ -54,15 +56,46 @@ class SingleImport(Synchronizer):
         self.reference = reference
         self.session = session
         self.model = self.session.pool.get(model_name)
+
         self.referential_id = referential_id  # sometimes it can be a shop...
-        self._reference = None
+        ref_obj = self.session.pool.get('external.referential')
+        self.referential = ref_obj.browse(self.session.cr,
+                                          self.session.uid,
+                                          self.referential_id,
+                                          context=self.session.context)
         self._binder = None
+        self._external_adapter = None
+        self._processor = None
 
     @property
     def binder(self):
         if self._binder is None:
-            self._binder = self.reference.get_binder(self.model)(self.session)
+            raise ValueError('A binder is missing for %s' % self)
         return self._binder
+
+    @binder.setter
+    def binder(self, binder):
+        self._binder = binder
+
+    @property
+    def external_adapter(self):
+        if self._external_adapter is None:
+            raise ValueError('An external_adapter is missing for %s' % self)
+        return self._external_adapter
+
+    @external_adapter.setter
+    def external_adapter(self, external_adapter):
+        self._external_adapter = external_adapter
+
+    @property
+    def processor(self):
+        if self._processor is None:
+            raise ValueError('A processor is missing for %s' % self)
+        return self._processor
+
+    @processor.setter
+    def processor(self, processor):
+        self._processor = processor
 
     def work(self, external_id, mode, with_commit=False):
         """ Import the record
@@ -71,7 +104,6 @@ class SingleImport(Synchronizer):
         """
         assert mode in ('create', 'update'), "mode should be create or update"
 
-        # TODO adapter for external APIs?
         ext_data = self._get_external_data(external_id)
 
         if self._has_to_skip(external_id, ext_data):
@@ -89,13 +121,14 @@ class SingleImport(Synchronizer):
         if mode == 'create':
             openerp_id = self._create(transformed_data)
         else:
-            openerp_id = self.binder.to_openerp(self.referential_id,
+            openerp_id = self.binder.to_openerp(self.referential,
                                                 external_id)
             openerp_id = self._update(openerp_id, transformed_data)
 
-        self.binder.bind(self.referential_id,
-                         external_id,
-                         openerp_id)
+        if openerp_id:
+            self.binder.bind(self.referential,
+                             external_id,
+                             openerp_id)
 
         if with_commit:
             self.session.commit()
@@ -114,7 +147,7 @@ class SingleImport(Synchronizer):
 
     def _get_external_data(self, external_id):
         # delegate a call to the backend
-        return
+        return self.external_adapter.read(external_id)
 
     def _import_dependencies(self, data):
         # call SingleImport#import for each dependency
@@ -136,9 +169,8 @@ class SingleImport(Synchronizer):
         """
 
     def _transform_data(self, external_data):
-        processor = self.reference.get_processor(self.model)(self)
         # from where do come the default values?
-        return processor.to_openerp(external_data, defaults={})
+        return self.processor.convert(external_data, defaults={})
 
     def _create(self, data):
         # delegate creation of the record
@@ -149,13 +181,13 @@ class SingleImport(Synchronizer):
 
     def _update(self, openerp_id, data):
         # delegate update of the record
-        if openerp_id is None:  # it has been deleted?
-            openerp_id = self._create(data)
-        else:
+        if openerp_id:  # it has been deleted
             self.model.write(self.session.cr, self.session.uid,
                              openerp_id, data, self.session.context)
             _logger.debug('openerp_id: %d updated', openerp_id)
-        return openerp_id
+        else:
+            return self._create(data)
+        return
 
     # def _after_commit():
     #     """implement only if special actions need to be done
@@ -172,15 +204,45 @@ class SingleExport(Synchronizer):
         self.session = session
         self.model = self.session.pool.get(model_name)
         self.referential_id = referential_id  # sometimes it can be a shop...
+        ref_obj = self.session.pool.get('external.referential')
+        self.referential = ref_obj.browse(self.session.cr,
+                                          self.session.uid,
+                                          self.referential_id,
+                                          context=self.session.context)
         self._reference = None
         self._binder = None
+        self._external_adapter = None
+        self._processor = None
 
     @property
     def binder(self):
         if self._binder is None:
-            self._binder = self.reference.get_binder(self.model)(self.session)
-
+            raise ValueError('A binder is missing for %s' % self)
         return self._binder
+
+    @binder.setter
+    def binder(self, binder):
+        self._binder = binder
+
+    @property
+    def external_adapter(self):
+        if self._external_adapter is None:
+            raise ValueError('An external_adapter is missing for %s' % self)
+        return self._external_adapter
+
+    @external_adapter.setter
+    def external_adapter(self, external_adapter):
+        self._external_adapter = external_adapter
+
+    @property
+    def processor(self):
+        if self._processor is None:
+            raise ValueError('A processor is missing for %s' % self)
+        return self._processor
+
+    @processor.setter
+    def processor(self, processor):
+        self._processor = processor
 
     def work(self, openerp_id, mode, fields=None, with_commit=False):
         """ Export the record
@@ -204,19 +266,20 @@ class SingleExport(Synchronizer):
 
         # default_values = self._default_values()
 
+        external_id = self.binder.to_external(self.referential, openerp_id)
+        if not external_id:
+            mode = 'create'
+            fields = None
+
         transformed_data = self._transform_data(record, fields)
 
         # special check on data before import
         self._validate_data(transformed_data)
         if mode == 'create':
             external_id = self._create(transformed_data)
+            self.binder.bind(self.referential, external_id, openerp_id)
         else:
-            external_id = self.binder.to_external(self.referential_id, openerp_id)
-            external_id = self._update(external_id, transformed_data)
-
-        self.binder.bind(self.referential_id,
-                         external_id,
-                         openerp_id)
+            self._update(external_id, transformed_data)
 
         if with_commit:
             self.session.commit()
@@ -253,17 +316,19 @@ class SingleExport(Synchronizer):
         Raise `InvalidDataError`?
         """
 
-    def _transform_data(self, record, fields):
+    def _transform_data(self, record, fields=None):
         # delegate a call to mapping
-        return {}
+        # from where do come the default values?
+        return self.processor.convert(record, fields=fields, defaults={})
 
     def _create(self, data):
         # delegate creation of the record
-        return
+        ext_id = self.external_adapter.create(data)
+        return ExternalIdentifier(id=ext_id)
 
     def _update(self, external_id, data):
-        # delegate update of the record
-        return
+        self.external_adapter.write(external_id, data)
+
 
     # def _after_commit():
     #     """implement only if special actions need to be done

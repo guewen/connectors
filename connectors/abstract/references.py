@@ -24,6 +24,7 @@ from collections import Callable
 from .binders import Binder
 from .processors import Processor
 from .synchronizers import Synchronizer
+from .adapters import ExternalAdapter
 
 
 class ReferenceRegistry(object):
@@ -80,6 +81,7 @@ class Reference(object):
         self._processors = set()
         self._binder = None
         self._synchronizers = set()
+        self._adapters = set()
         registry.register_reference(self)
 
     def match(self, service, version):
@@ -122,11 +124,13 @@ class Reference(object):
                     self.register_synchronizer(cls, **opts)
                 elif issubclass(cls, Processor):
                     self.register_processor(cls, **opts)
+                elif issubclass(cls, ExternalAdapter):
+                    self.register_adapter(cls, **opts)
                 else:
                     raise TypeError(
                             '%s is not a valid type for %s.\n'
                             'Allowed types are subclasses of Binder, Synchronizer, '
-                            'Processor' % (cls, self))
+                            'Processor, ExternalAdapter' % (cls, self))
                 return cls
             return wrapped_cls
 
@@ -136,11 +140,10 @@ class Reference(object):
 
     def get_synchronizer(self, synchro_type, model):
         synchronizer = None
-        if self._synchronizers:
-            for sync in self._synchronizers:
-                if sync.match(synchro_type, model):
-                    synchronizer = sync
-                    break
+        for sync in self._synchronizers:
+            if sync.match(synchro_type, model):
+                synchronizer = sync
+                break
         if synchronizer is None and self.parent:
             synchronizer = self.parent.get_synchronizer(synchro_type, model)
             if synchronizer is None:
@@ -149,19 +152,34 @@ class Reference(object):
                                  (self, synchro_type, model))
         return synchronizer
 
-    def get_processor(self, model):
+    def get_processor(self, model, direction, child_of=None):
         processor = None
-        if self._processors:
-            for proc in self._processors:
-                if proc.match(model):
-                    processor = proc
-                    break
+        for proc in self._processors:
+            if proc.match(model, direction, child_of=child_of):
+                processor = proc
+                break
         if processor is None and self.parent:
-            processor = self.parent.get_processor(model)
+            processor = self.parent.get_processor(model,
+                                                  direction,
+                                                  child_of=child_of)
             if processor is None:
                 raise ValueError('No matching processor found for %s '
-                                 'with model: %s' % (self, model))
+                                 'with model,direction,child_of: %s,%s,%s' %
+                                 (self, model, direction, child_of))
         return processor
+
+    def get_adapter(self, model):
+        adapter = None
+        for proc in self._adapters:
+            if proc.match(model):
+                adapter = proc
+                break
+        if adapter is None and self.parent:
+            adapter = self.parent.get_adapter(model)
+            if adapter is None:
+                raise ValueError('No matching adapter found for %s '
+                                 'with model: %s' % (self, model))
+        return adapter
 
     def get_binder(self, model):
         if self._binder:
@@ -183,8 +201,14 @@ class Reference(object):
     def register_processor(self, processor):
         self._processors.add(processor)
 
+    def register_adapter(self, adapter):
+        self._adapters.add(adapter)
+
     def unregister_synchronizer(self, synchronizer):
         self._synchronizers.remove(synchronizer)
 
     def unregister_processor(self, processor):
         self._processors.remove(processor)
+
+    def unregister_adapter(self, adapter):
+        self._adapters.remove(adapter)

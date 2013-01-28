@@ -27,16 +27,20 @@ from ..abstract.tasks import task
 from ..abstract.session import Session
 from ..abstract.worker import Worker
 from ..abstract.queue import JobsQueue
+from .adapters import MagentoLocation
+from ..abstract import TO_REFERENCE, FROM_REFERENCE
 
 _logger = logging.getLogger(__name__)
 
 
 @task
 def import_generic(session, model_name=None, record_id=None, mode='create',
-                   referential_id=None):
-    """ Import a record from the external referential
-
+                   referential_id=None, with_commit=False):
+    """ Import a record from the external referential """
+    """
     Use keyword arguments for the task arguments
+
+    Only the `Worker` should use the `with_commit` argument.
 
     :param session: `Session` object
     :param model_name: name of the model as str
@@ -44,27 +48,30 @@ def import_generic(session, model_name=None, record_id=None, mode='create',
     :param mode: 'create' or 'update'
     :param referential_id: id of external.referential
     """
-    # extref = session.pool.get('external.referential').browse(
-    #         session.cr, session.uid, referential_id, session.context)
-    # ref = get_reference(extref.service, extref.version)
-    ref = get_reference('magento', '1.7')
+    ext_ref_obj = session.pool.get('external.referential')
+    ext_ref = ext_ref_obj.browse(session.cr,
+                                session.uid,
+                                referential_id,
+                                context=session.context)
+    ref = get_reference(ext_ref.service, ext_ref.version)
+    magento = MagentoLocation(ext_ref.location, ext_ref.username, ext_ref.password)
 
-    # FIXME: not sure that we want forcefully a new cr
-    # when we run the task, could it be called from a `_get_dependencies`
-    # as instance?
-    # should we commit as well?
-
-    importer_cls = ref.get_synchronizer('import_record', model_name)
-    importer = importer_cls(ref, session, model_name, referential_id)
-    importer.work(record_id, mode, with_commit=True)
+    importer_class = ref.get_synchronizer('import_record', model_name)
+    importer = importer_class(ref, session, model_name, referential_id)
+    importer.binder = ref.get_binder(model_name)(session, ref)
+    importer.processor = ref.get_processor(model_name, FROM_REFERENCE)(session, ref)
+    importer.external_adapter = ref.get_adapter(model_name)(ref, magento)
+    importer.work(record_id, mode, with_commit=with_commit)
 
 
 @task
 def export_generic(session, model_name=None, record_id=None,
-                   mode='create', fields=None, referential_id=None):
-    """ Export a record to the external referential
-
+                   mode='create', fields=None, referential_id=None,
+                   with_commit=False):
+    """ Export a record to the external referential """
+    """
     Use keyword arguments for the task arguments
+    Only the `Worker` should use the `with_commit` argument.
 
     :param session: `Session` object
     :param model_name: name of the model as str
@@ -74,23 +81,22 @@ def export_generic(session, model_name=None, record_id=None,
                    all the fields are exported
     :param referential_id: id of external.referential
     """
-    # FIXME: not sure that we want forcefully a new cr
-    # when we run the task, could it be called from a `_get_dependencies`
-    # as instance?
-    # should we commit as well?
+    ext_ref_obj = session.pool.get('external.referential')
+    ext_ref = ext_ref_obj.browse(session.cr,
+                                session.uid,
+                                referential_id,
+                                context=session.context)
+    ref = get_reference(ext_ref.service, ext_ref.version)
+    magento = MagentoLocation(ext_ref.location, ext_ref.username, ext_ref.password)
 
-    # TODO move the search of the Reference in the external.referential
-    # model
-
-    # extref = session.pool.get('external.referential').browse(
-    #         session.cr, session.uid, referential_id, session.context)
-    # ref = get_reference(extref.service, extref.version)
-    ref = get_reference('magento', '1.7')
-    exporter_cls = ref.get_synchronizer('export_record', model_name)
-    exporter = exporter_cls(ref, session, model_name, referential_id)
+    exporter_class = ref.get_synchronizer('export_record', model_name)
+    exporter = exporter_class(ref, session, model_name, referential_id)
+    exporter.binder = ref.get_binder(model_name)(session, ref)
+    exporter.processor = ref.get_processor(model_name, TO_REFERENCE)(session, ref)
+    exporter.external_adapter = ref.get_adapter(model_name)(ref, magento)
     # if the task export with commit, it should not be called
     # for subimports
-    exporter.work(record_id, mode, fields=fields, with_commit=True)
+    exporter.work(record_id, mode, fields=fields, with_commit=with_commit)
 
 
 # TODO clean

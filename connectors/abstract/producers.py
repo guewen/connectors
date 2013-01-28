@@ -65,14 +65,9 @@ class model_producers(object_proxy):
 
         context = kw.get('context')
 
-        session = lambda: Session(  # lazy evaluation
-                cr,
-                uid,
-                pool,
-                model,
-                context=context)
+        session = Session(cr, uid, pool, model, context=context)
         if method == 'create':
-            on_record_create.fire(model, session(), res)
+            on_record_create.fire(model, session, res)
 
         elif method == 'write':
             ids = args[0]
@@ -80,14 +75,14 @@ class model_producers(object_proxy):
             if isinstance(ids, (long, int)):
                 ids = [ids]
             for res_id in ids:
-                on_record_write.fire(model, session(), res_id, vals.keys())
+                on_record_write.fire(model, session, res_id, vals.keys())
 
         elif method == 'unlink':
             ids = args[0]
             if isinstance(ids, (long, int)):
                 ids = [ids]
             for res_id in ids:
-                on_record_unlink.fire(model, session(), res_id)
+                on_record_unlink.fire(model, session, res_id)
         # TODO: implements action, workflow action?
 
         return res
@@ -96,8 +91,8 @@ class model_producers(object_proxy):
         res = super(model_producers, self).exec_workflow_cr(
                 cr, uid, obj, signal, *args)
         res_id = args[0]
-        # no context?
         on_workflow_signal.fire(
+            obj,
             Session(
                 cr,
                 uid,

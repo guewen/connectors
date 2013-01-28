@@ -19,26 +19,56 @@
 #
 ##############################################################################
 
-from ..abstract.processors import Processor
+from ..abstract.processors import (ToReferenceProcessor,
+                                   FromReferenceProcessor,
+                                   mapping)
 from .references import Magento, Magento1700
 
 
 @Magento
-class Product(Processor):
+class ToRefProduct(ToReferenceProcessor):
+    model_name = 'product.product'
+
+@Magento
+class FromRefProduct(FromReferenceProcessor):
     model_name = 'product.product'
 
 
 @Magento
-class Partner(Processor):
+class FromRefPartner(FromReferenceProcessor):
     model_name = 'res.partner'
 
-    direct_import = [('name', 'name')]
+    direct = [('name', 'name'),
+              ('email', 'email')]
 
-
-# example of specific mapping for version 1.7
 @Magento1700
-class Partner1700(Partner):
+class FromRefPartner1700(FromRefPartner):
+
+    direct = [('lastname', 'name'),
+              ('email', 'email'),
+              ('street', 'street'),
+              ('city', 'city')]
+
+
+@Magento1700
+class ToRefPartner1700(ToReferenceProcessor):
     model_name = 'res.partner'
 
-    direct_import = [('name', 'name'),
-                     ('test', 'test')]
+    @mapping(changed_by=['name', 'firstname'])
+    def name(self, record):
+        # XXX use base_partner_surname
+        if ' ' in record['name']:
+            parts = record['name'].split(' ')
+            firstname = parts[0]
+            lastname = (' ').join(parts[1:])
+        else:
+            firstname = '-'
+            lastname = record['name']
+        return {'firstname': firstname, 'lastname': lastname}
+
+    @mapping
+    def email(self, record):
+        return {'email': record['email']}
+
+    direct = [('street', 'street'),
+              ('city', 'city')]

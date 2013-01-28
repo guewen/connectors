@@ -31,6 +31,8 @@ Experiments around the connectors, with chocolate.
     'depends': ['delivery'],
     'data': [
         'abstract/jobs_view.xml',
+        'implementation/external_referential_view.xml',
+        'implementation/data.xml',
     ],
     'installable': True,
 }
