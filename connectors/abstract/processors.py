@@ -19,9 +19,43 @@
 #
 ##############################################################################
 
+from collections import Callable
+
 # directions
 TO_REFERENCE = 'to_reference'
 FROM_REFERENCE = 'from_reference'
+
+
+def mapping(*args, **kwargs):
+    """ Decorator declarating a mapping for a field
+
+    ``changed_by`` is a list of field names which should trigger the
+    mapping.
+    If ``changed_by`` is empty, the mapping is always active.  As
+    far as possible, it should be used, thus, when we do an update
+    on only a small number of fields on a record, the size of the
+    output record will be limited to only the fields having to be
+    modified.
+    """
+    def register_mapping(**opts):
+        def wrapper(func):
+            func.is_mapping = True
+            func.changed_by = opts.get('changed_by')
+            return func
+        return wrapper
+
+    if len(args) == 1 and isinstance(args[0], Callable):
+        return register_mapping(**kwargs)(*args)
+    return register_mapping(**kwargs)
+
+
+class MetaProcessor(type):
+    def __init__(cls, name, bases, attrs):
+        for key, value in attrs.iteritems():
+            mapping = getattr(value, 'is_mapping', None)
+            if mapping:
+                changed_by = value.changed_by
+                cls.method.append((value, changed_by))
 
 
 class Processor(object):
@@ -48,6 +82,8 @@ class Processor(object):
 
     A sub-conversion will be necessary to convert the lines.
     """
+
+    __metaclass__ = MetaProcessor
 
     # name of the OpenERP model, to be defined in concrete classes
     model_name = None
@@ -87,7 +123,6 @@ class Processor(object):
     def convert(self, record, fields=None, defaults=None, parent_values=None):
         """ Transform an external record to an OpenERP record or the opposite
 
-
         :param record: record to transform
         :param defaults: dict of default values when attributes are not set
         :param parent_values: openerp record of the containing object
@@ -102,24 +137,42 @@ class Processor(object):
             fields = {}
 
         for from_attr, to_attr in self.direct:
-            result[from_attr] = record[to_attr]  # XXX not compatible with all
-                                                 # record type (wrap
-                                                 # records?)
+            if (fields is None or from_attr in fields):
+                # XXX not compatible with all
+                # record type (wrap
+                # records in a standard class representation?)
+                result[from_attr] = record[to_attr]
 
-        for attr, meth in self.method:
-            vals = meth(self, attr, record)
-            if isinstance(vals, dict):
-                result.update(vals)
+        for meth in self.method:
+            changed_by = None
+            if len(meth) == 2:
+                meth, changed_by = meth
+
+            if (changed_by is not None and
+                    not isinstance(changed_by, (tuple, list))):
+                changed_by = [changed_by]
+
+            if (fields is None or
+                    changed_by is None or
+                    set(fields).intersection(changed_by)):
+                vals = meth(self, record)
+                if isinstance(vals, dict):
+                    result.update(vals)
+                else:
+                    raise ValueError('%s: invalid return value for the '
+                                     'mapping method %s' % (vals, meth))
 
         for attr, model in self.children:
-            processor_class = self.reference.get_processor(model,
-                                                           self.direction,
-                                                           self.model_name)
-            processor = processor_class(self.session, self.reference)
-            content = record[attr]  # XXX not compatible with
-                                    # all record types
-            vals = self._sub_convert(content, processor, parent_values=result)
-            result[attr] = vals
+            if (fields is None or attr in fields):
+                processor_class = self.reference.get_processor(model,
+                                                               self.direction,
+                                                               self.model_name)
+                processor = processor_class(self.session, self.reference)
+                content = record[attr]  # XXX not compatible with
+                                        # all record types
+                vals = self._sub_convert(content, processor,
+                                         parent_values=result)
+                result[attr] = vals
 
         return result
 
@@ -164,5 +217,3 @@ class FromReferenceProcessor(Processor):
                                      defaults=None)
             result.append((0, 0, vals))
         return result
-
-# m2o should be imported by the synchronizer before the transformation

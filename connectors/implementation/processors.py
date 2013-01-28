@@ -19,7 +19,9 @@
 #
 ##############################################################################
 
-from ..abstract.processors import ToReferenceProcessor, FromReferenceProcessor
+from ..abstract.processors import (ToReferenceProcessor,
+                                   FromReferenceProcessor,
+                                   mapping)
 from .references import Magento, Magento1700
 
 
@@ -52,19 +54,21 @@ class FromRefPartner1700(FromRefPartner):
 class ToRefPartner1700(ToReferenceProcessor):
     model_name = 'res.partner'
 
-    def name(self, attribute, record):
+    @mapping(changed_by=['name', 'firstname'])
+    def name(self, record):
         # XXX use base_partner_surname
-        if ' ' in record[attribute]:
-            parts = record[attribute].split(' ')
+        if ' ' in record['name']:
+            parts = record['name'].split(' ')
             firstname = parts[0]
             lastname = (' ').join(parts[1:])
         else:
             firstname = '-'
-            lastname = record[attribute]
+            lastname = record['name']
         return {'firstname': firstname, 'lastname': lastname}
 
-    direct = [('email', 'email'),
-              ('street', 'street'),
-              ('city', 'city')]
+    @mapping
+    def email(self, record):
+        return {'email': record['email']}
 
-    method = [('name', name)]
+    direct = [('street', 'street'),
+              ('city', 'city')]
