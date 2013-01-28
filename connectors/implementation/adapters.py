@@ -92,6 +92,7 @@ class ResPartnerAdapter(MagentoRecordsAdapter):
 
     def create(self, data):
         """ Create a record on the external system """
+        _logger.debug('create data on Magento %s', data)
         with Customer(self.magento.location,
                       self.magento.username,
                       self.magento.password) as api:
@@ -99,7 +100,7 @@ class ResPartnerAdapter(MagentoRecordsAdapter):
 
     def write(self, id, data):
         """ Update records on the external system """
-        _logger.debug('data %s', data)
+        _logger.debug('write data on Magento %s', data)
         with Customer(self.magento.location,
                       self.magento.username,
                       self.magento.password) as api:

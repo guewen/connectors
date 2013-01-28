@@ -152,7 +152,7 @@ class Processor(object):
                     not isinstance(changed_by, (tuple, list))):
                 changed_by = [changed_by]
 
-            if (fields is None or
+            if (not fields or
                     changed_by is None or
                     set(fields).intersection(changed_by)):
                 vals = meth(self, record)

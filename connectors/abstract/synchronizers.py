@@ -21,6 +21,7 @@
 
 import logging
 from .binders import ExternalIdentifier
+from .events import on_record_create
 
 _logger = logging.getLogger(__name__)
 
@@ -103,7 +104,6 @@ class SingleImport(Synchronizer):
         """
         assert mode in ('create', 'update'), "mode should be create or update"
 
-        # TODO adapter for external APIs?
         ext_data = self._get_external_data(external_id)
 
         if self._has_to_skip(external_id, ext_data):
@@ -266,23 +266,20 @@ class SingleExport(Synchronizer):
 
         # default_values = self._default_values()
 
+        external_id = self.binder.to_external(self.referential, openerp_id)
+        if not external_id:
+            mode = 'create'
+            fields = None
+
         transformed_data = self._transform_data(record, fields)
 
         # special check on data before import
         self._validate_data(transformed_data)
         if mode == 'create':
             external_id = self._create(transformed_data)
+            self.binder.bind(self.referential, external_id, openerp_id)
         else:
-            external_id = self.binder.to_external(self.referential, openerp_id)
-            external_id = self._update(external_id, transformed_data)
-
-        # when update does not find a record, it can call create,
-        # in such case, it will have a new identifier.
-        # when update does update, it must return None
-        if external_id:
-            self.binder.bind(self.referential,
-                             external_id,
-                             openerp_id)
+            self._update(external_id, transformed_data)
 
         if with_commit:
             self.session.commit()
@@ -330,13 +327,9 @@ class SingleExport(Synchronizer):
         return ExternalIdentifier(id=ext_id)
 
     def _update(self, external_id, data):
-        if external_id:
-            # update
-            self.external_adapter.write(external_id, data)
-        else:
-            return self._create(data)  # FIXME generate the full data
-        return
+        self.external_adapter.write(external_id, data)
+
 
     # def _after_commit():
-    #     """implemen only if special actions need to be done
+    #     """implement only if special actions need to be done
     #     after the commit"""
