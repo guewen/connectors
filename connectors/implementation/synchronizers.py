@@ -29,10 +29,6 @@ class ResPartnerImport(SingleImport):
 
     model_name = 'res.partner'
 
-    def _get_external_data(self, external_id):
-        # delegate a call to the backend
-        return {'name': 'Guewen Baconnier'}
-
     def _validate_data(self, data):
         if data.get('name') is None:
             raise InvalidDataError('Missing name')
@@ -43,10 +39,6 @@ class ResPartnerImport(SingleImport):
 class ResPartner1700Import(SingleImport):
 
     model_name = 'res.partner'
-
-    def _get_external_data(self, external_id):
-        # delegate a call to the backend
-        return {'name': 'Guewen Baconnier with Magento 1.7'}
 
     def _validate_data(self, data):
         if data.get('name') is None:

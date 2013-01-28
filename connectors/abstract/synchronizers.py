@@ -147,7 +147,7 @@ class SingleImport(Synchronizer):
 
     def _get_external_data(self, external_id):
         # delegate a call to the backend
-        return
+        return self.external_adapter.read(external_id)
 
     def _import_dependencies(self, data):
         # call SingleImport#import for each dependency
