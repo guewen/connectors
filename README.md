@@ -1,3 +1,13 @@
+Branch moved
+============
+
+The development of this branch has moved to Launchpad on:
+
+https://code.launchpad.net/~magentoerpconnect-core-editors/magentoerpconnect/7.0-prototype
+
+bzr lp:magentoerpconnect/7.0-prototype
+
+
 connectors
 ==========
 
