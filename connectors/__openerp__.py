@@ -2,7 +2,7 @@
 ##############################################################################
 #
 #    Author: Guewen Baconnier
-#    Copyright 2012 Guewen Baconnier
+#    Copyright 2012 Camptocamp SA
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -26,8 +26,8 @@
     'description': """
 Experiments around the connectors, with chocolate.
     """,
-    'author': 'Guewen Baconnier',
-    'website': '',
+    'author': 'Camptocamp',
+    'website': 'http://www.camptocamp.com',
     'depends': ['delivery'],
     'data': [
         'abstract/jobs_view.xml',
